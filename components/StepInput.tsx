@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
@@ -16,6 +16,9 @@ interface StepInputProps {
   onSubmit?: () => void;
   autoFocus?: boolean;
   returnKeyType?: 'done' | 'next' | 'go';
+  autoAdvanceLength?: number;
+  autoAdvanceDelay?: number;
+  inputRef?: React.RefObject<TextInput>;
 }
 
 export function StepInput({
@@ -31,36 +34,84 @@ export function StepInput({
   onSubmit,
   autoFocus = false,
   returnKeyType = 'next',
+  autoAdvanceLength,
+  autoAdvanceDelay = 1000,
+  inputRef: externalRef,
 }: StepInputProps) {
-  const inputRef = useRef<TextInput>(null);
+  const internalRef = useRef<TextInput>(null);
+  const ref = externalRef || internalRef;
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasAdvancedRef = useRef(false);
+  const onSubmitRef = useRef(onSubmit);
+
+  useEffect(() => {
+    onSubmitRef.current = onSubmit;
+  }, [onSubmit]);
+
+  useEffect(() => {
+    hasAdvancedRef.current = false;
+  }, [label]);
 
   useEffect(() => {
     if (autoFocus && editable) {
       const timer = setTimeout(() => {
-        inputRef.current?.focus();
+        (ref as React.RefObject<TextInput>).current?.focus();
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [autoFocus, editable]);
+  }, [autoFocus, editable, label]);
+
+  const handleChange = useCallback((text: string) => {
+    onChangeText(text);
+
+    if (!onSubmitRef.current || hasAdvancedRef.current) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (autoAdvanceLength && text.length >= autoAdvanceLength) {
+      hasAdvancedRef.current = true;
+      debounceRef.current = setTimeout(() => {
+        onSubmitRef.current?.();
+      }, 300);
+      return;
+    }
+
+    if (text.length > 0) {
+      debounceRef.current = setTimeout(() => {
+        if (!hasAdvancedRef.current) {
+          hasAdvancedRef.current = true;
+          onSubmitRef.current?.();
+        }
+      }, autoAdvanceDelay);
+    }
+  }, [onChangeText, autoAdvanceLength, autoAdvanceDelay]);
+
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, []);
 
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.inputRow}>
         <TextInput
-          ref={inputRef}
+          ref={ref as React.RefObject<TextInput>}
           style={[styles.input, multiline && { height: 80, textAlignVertical: 'top' as const }, !editable && styles.disabled]}
           value={value}
-          onChangeText={onChangeText}
+          onChangeText={handleChange}
           keyboardType={keyboardType}
           placeholder={placeholder}
           placeholderTextColor={Colors.textLight}
           editable={editable}
           multiline={multiline}
           returnKeyType={returnKeyType}
+          maxLength={autoAdvanceLength}
           onSubmitEditing={() => {
-            if (onSubmit && value.length > 0) {
-              onSubmit();
+            if (onSubmitRef.current && value.length > 0 && !hasAdvancedRef.current) {
+              hasAdvancedRef.current = true;
+              onSubmitRef.current();
             }
           }}
           blurOnSubmit={true}
