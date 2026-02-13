@@ -65,10 +65,10 @@ export default function FarmerInfoScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 100 }}>
+      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 40 }} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
-          <StepInput label={t('farmerName', language)} value={record.farmerName} onChangeText={(v) => update('farmerName', v)} placeholder="e.g. Rajesh Kumar" />
-          <StepInput label={t('farmerPhone', language)} value={record.farmerPhone} onChangeText={(v) => update('farmerPhone', v)} keyboardType="phone-pad" placeholder="10 digits" />
+          <StepInput label={t('farmerName', language)} value={record.farmerName} onChangeText={(v) => update('farmerName', v)} placeholder="e.g. Rajesh Kumar" autoFocus={true} onSubmit={() => {}} />
+          <StepInput label={t('farmerPhone', language)} value={record.farmerPhone} onChangeText={(v) => update('farmerPhone', v)} keyboardType="phone-pad" placeholder="10 digits" onSubmit={() => {}} />
           <StepPicker label={t('landOwnership', language)} value={record.landOwnership} options={[
             { label: t('owner', language), value: 'owner' },
             { label: t('tenant', language), value: 'tenant' },
@@ -82,21 +82,11 @@ export default function FarmerInfoScreen() {
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Collector</Text>
-          <StepInput label={t('collectorName', language)} value={record.collectorName} onChangeText={(v) => update('collectorName', v)} placeholder="e.g. Amit Singh" />
-          <StepInput label={t('collectorPhone', language)} value={record.collectorPhone} onChangeText={(v) => update('collectorPhone', v)} keyboardType="phone-pad" placeholder="10 digits" />
-          <StepInput label={t('timeSpent', language)} value={record.timeSpent} onChangeText={(v) => update('timeSpent', v)} keyboardType="numeric" placeholder="e.g. 45" />
+          <StepInput label={t('collectorName', language)} value={record.collectorName} onChangeText={(v) => update('collectorName', v)} placeholder="e.g. Amit Singh" onSubmit={() => {}} />
+          <StepInput label={t('collectorPhone', language)} value={record.collectorPhone} onChangeText={(v) => update('collectorPhone', v)} keyboardType="phone-pad" placeholder="10 digits" onSubmit={() => {}} />
+          <StepInput label={t('timeSpent', language)} value={record.timeSpent} onChangeText={(v) => update('timeSpent', v)} keyboardType="numeric" placeholder="e.g. 45" returnKeyType="done" onSubmit={goToReview} />
         </View>
       </ScrollView>
-
-      <View style={[styles.footer, { paddingBottom: bottomPad + 16 }]}>
-        <Pressable
-          style={({ pressed }) => [styles.nextBtn, pressed && { transform: [{ scale: 0.97 }] }]}
-          onPress={goToReview}
-        >
-          <Text style={styles.nextBtnText}>{t('review', language)}</Text>
-          <Ionicons name="arrow-forward" size={20} color={Colors.white} />
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -110,7 +100,4 @@ const styles = StyleSheet.create({
   body: { flex: 1, paddingHorizontal: 20, paddingTop: 24 },
   card: { backgroundColor: Colors.surface, borderRadius: 20, padding: 24, marginBottom: 16, elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8 },
   sectionTitle: { fontSize: 18, fontFamily: 'Nunito_700Bold', color: Colors.text, marginBottom: 16 },
-  footer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 12, backgroundColor: Colors.background, borderTopWidth: 1, borderTopColor: Colors.borderLight },
-  nextBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary, borderRadius: 16, paddingVertical: 16, gap: 8 },
-  nextBtnText: { fontSize: 17, fontFamily: 'Nunito_700Bold', color: Colors.white },
 });

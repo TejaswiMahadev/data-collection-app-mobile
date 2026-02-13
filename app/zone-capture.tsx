@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
@@ -28,9 +28,19 @@ export default function ZoneCaptureScreen() {
   const [record, setRecord] = useState<FieldRecord | null>(null);
   const [activeZone, setActiveZone] = useState<'A' | 'B' | 'C'>('A');
   const [zoneStep, setZoneStep] = useState(0);
+  const zoneStepRef = useRef(0);
+  const activeZoneRef = useRef<'A' | 'B' | 'C'>('A');
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
+
+  useEffect(() => {
+    zoneStepRef.current = zoneStep;
+  }, [zoneStep]);
+
+  useEffect(() => {
+    activeZoneRef.current = activeZone;
+  }, [activeZone]);
 
   useEffect(() => {
     loadRecord();
@@ -47,14 +57,45 @@ export default function ZoneCaptureScreen() {
     return record!.zones.find(z => z.zoneId === activeZone)!;
   };
 
-  const updateZone = (updates: Partial<ZoneData>) => {
+  const updateZone = (updates: Partial<ZoneData>, autoAdvance = false) => {
     if (!record) return;
     const newZones = record.zones.map(z =>
-      z.zoneId === activeZone ? { ...z, ...updates } : z
+      z.zoneId === activeZoneRef.current ? { ...z, ...updates } : z
     );
     const updated = { ...record, zones: newZones };
     setRecord(updated);
     saveRecord(updated);
+
+    if (autoAdvance) {
+      const zone = newZones.find(z => z.zoneId === activeZoneRef.current)!;
+      const allDataFilled = zone.plantHeight && zone.plantColor && zone.standDensity && zone.cobSizeObserved && zone.plantsSampled;
+      if (allDataFilled) {
+        setTimeout(() => {
+          completeCurrentZone(updated);
+        }, 400);
+      }
+    }
+  };
+
+  const completeCurrentZone = (rec: FieldRecord) => {
+    const newZones = rec.zones.map(z =>
+      z.zoneId === activeZoneRef.current ? { ...z, completed: true } : z
+    );
+    const updated = { ...rec, zones: newZones };
+    setRecord(updated);
+    saveRecord(updated);
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    if (activeZoneRef.current === 'A') {
+      setActiveZone('B');
+      setZoneStep(0);
+    } else if (activeZoneRef.current === 'B') {
+      setActiveZone('C');
+      setZoneStep(0);
+    } else {
+      router.push({ pathname: '/agronomic', params: { recordId: updated.id } });
+    }
   };
 
   const takeZonePhoto = async (type: 'crop' | 'cob') => {
@@ -70,40 +111,13 @@ export default function ZoneCaptureScreen() {
         } else {
           updateZone({ cobPhotoUri: result.assets[0].uri });
         }
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        setTimeout(() => {
+          setZoneStep(prev => prev + 1);
+        }, 500);
       }
     } catch {
       Alert.alert('Error', 'Could not open camera');
-    }
-  };
-
-  const canAdvanceStep = () => {
-    const zone = getZone();
-    switch (zoneStep) {
-      case 0: return !!zone.cropPhotoUri;
-      case 1: return !!zone.cobPhotoUri;
-      case 2: return !!(zone.plantHeight && zone.plantColor && zone.standDensity && zone.cobSizeObserved && zone.plantsSampled);
-      default: return false;
-    }
-  };
-
-  const nextZoneStep = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (zoneStep < 2) {
-      setZoneStep(zoneStep + 1);
-    } else {
-      updateZone({ completed: true });
-      if (activeZone === 'A') {
-        setActiveZone('B');
-        setZoneStep(0);
-      } else if (activeZone === 'B') {
-        setActiveZone('C');
-        setZoneStep(0);
-      } else {
-        if (record) {
-          router.push({ pathname: '/agronomic', params: { recordId: record.id } });
-        }
-      }
     }
   };
 
@@ -121,8 +135,6 @@ export default function ZoneCaptureScreen() {
     B: t('zoneB', language),
     C: t('zoneC', language),
   };
-
-  const completedZones = record.zones.filter(z => z.completed).length;
 
   return (
     <View style={styles.container}>
@@ -173,7 +185,7 @@ export default function ZoneCaptureScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 100 }}>
+      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 40 }} keyboardShouldPersistTaps="handled">
         <View style={[styles.zoneBanner, { backgroundColor: ZONE_COLORS[activeZone] + '15' }]}>
           <View style={[styles.zoneDot, { backgroundColor: ZONE_COLORS[activeZone] }]} />
           <Text style={[styles.zoneBannerText, { color: ZONE_COLORS[activeZone] }]}>
@@ -188,6 +200,10 @@ export default function ZoneCaptureScreen() {
             {zone.cropPhotoUri ? (
               <View style={styles.photoWrap}>
                 <Image source={{ uri: zone.cropPhotoUri }} style={styles.photo} contentFit="cover" />
+                <View style={styles.autoTag}>
+                  <Ionicons name="checkmark-circle" size={14} color={Colors.white} />
+                  <Text style={styles.autoTagText}>Auto-advancing...</Text>
+                </View>
               </View>
             ) : (
               <Pressable
@@ -207,6 +223,10 @@ export default function ZoneCaptureScreen() {
             {zone.cobPhotoUri ? (
               <View style={styles.photoWrap}>
                 <Image source={{ uri: zone.cobPhotoUri }} style={styles.photo} contentFit="cover" />
+                <View style={styles.autoTag}>
+                  <Ionicons name="checkmark-circle" size={14} color={Colors.white} />
+                  <Text style={styles.autoTagText}>Auto-advancing...</Text>
+                </View>
               </View>
             ) : (
               <Pressable
@@ -228,6 +248,8 @@ export default function ZoneCaptureScreen() {
               value={zone.plantHeight || ''}
               onChangeText={(v) => updateZone({ plantHeight: v })}
               placeholder="e.g. 180 cm"
+              autoFocus={true}
+              onSubmit={() => {}}
             />
             <StepPicker
               label={t('plantColor', language)}
@@ -266,27 +288,17 @@ export default function ZoneCaptureScreen() {
               onChangeText={(v) => updateZone({ plantsSampled: v })}
               keyboardType="numeric"
               placeholder="e.g. 10"
+              returnKeyType="done"
+              onSubmit={() => {
+                const z = record.zones.find(zn => zn.zoneId === activeZoneRef.current)!;
+                if (z.plantHeight && z.plantColor && z.standDensity && z.cobSizeObserved) {
+                  completeCurrentZone(record);
+                }
+              }}
             />
           </View>
         )}
       </ScrollView>
-
-      <View style={[styles.footer, { paddingBottom: bottomPad + 16 }]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.nextBtn,
-            !canAdvanceStep() && styles.nextBtnDisabled,
-            pressed && canAdvanceStep() && { transform: [{ scale: 0.97 }] },
-          ]}
-          onPress={nextZoneStep}
-          disabled={!canAdvanceStep()}
-        >
-          <Text style={styles.nextBtnText}>
-            {zoneStep === 2 && activeZone === 'C' ? t('agronomicData', language) : t('next', language)}
-          </Text>
-          <Ionicons name="arrow-forward" size={20} color={Colors.white} />
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -401,38 +413,28 @@ const styles = StyleSheet.create({
   photoWrap: {
     borderRadius: 12,
     overflow: 'hidden',
+    position: 'relative',
   },
   photo: {
     width: '100%',
     height: 200,
     borderRadius: 12,
   },
-  footer: {
+  autoTag: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-  },
-  nextBtn: {
+    bottom: 8,
+    right: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    paddingVertical: 16,
-    gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
   },
-  nextBtnDisabled: {
-    backgroundColor: Colors.borderLight,
-  },
-  nextBtnText: {
-    fontSize: 17,
-    fontFamily: 'Nunito_700Bold',
+  autoTagText: {
+    fontSize: 11,
+    fontFamily: 'Nunito_400Regular',
     color: Colors.white,
   },
 });

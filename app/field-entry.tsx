@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -22,9 +22,14 @@ export default function FieldEntryScreen() {
   const [record, setRecord] = useState<FieldRecord>(createEmptyRecord());
   const [step, setStep] = useState(0);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'capturing' | 'done'>('idle');
+  const stepRef = useRef(step);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
+
+  useEffect(() => {
+    stepRef.current = step;
+  }, [step]);
 
   const update = (key: keyof FieldRecord, value: any) => {
     setRecord(prev => ({ ...prev, [key]: value }));
@@ -40,11 +45,17 @@ export default function FieldEntryScreen() {
         return;
       }
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      update('latitude', loc.coords.latitude);
-      update('longitude', loc.coords.longitude);
-      update('gpsAccuracy', loc.coords.accuracy ?? 0);
+      setRecord(prev => ({
+        ...prev,
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        gpsAccuracy: loc.coords.accuracy ?? 0,
+      }));
       setGpsStatus('done');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setTimeout(() => {
+        advanceStep(2);
+      }, 800);
     } catch (e) {
       setGpsStatus('idle');
       Alert.alert('GPS Error', 'Could not capture GPS location');
@@ -52,38 +63,50 @@ export default function FieldEntryScreen() {
   };
 
   const handleAcresChange = (val: string) => {
-    update('fieldAreaAcres', val);
     const acres = parseFloat(val);
-    if (!isNaN(acres)) {
-      update('fieldAreaHectares', (acres * 0.404686).toFixed(2));
-    } else {
-      update('fieldAreaHectares', '');
-    }
+    setRecord(prev => ({
+      ...prev,
+      fieldAreaAcres: val,
+      fieldAreaHectares: !isNaN(acres) ? (acres * 0.404686).toFixed(2) : '',
+    }));
   };
 
-  const canProceed = () => {
-    switch (step) {
-      case 0: return record.fieldId.length > 0;
-      case 1: return true;
-      case 2: return gpsStatus === 'done';
-      case 3: return record.district.length > 0;
-      case 4: return record.block.length > 0;
-      case 5: return record.village.length > 0;
-      case 6: return record.fieldAreaAcres.length > 0;
-      case 7: return true;
-      default: return false;
-    }
-  };
-
-  const nextStep = async () => {
+  const advanceStep = (fromStep: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (step < TOTAL_STEPS - 1) {
-      setStep(step + 1);
-    } else {
-      record.currentPhase = 4;
-      await saveRecord(record);
-      router.push({ pathname: '/photo-walk', params: { recordId: record.id } });
+    if (fromStep < TOTAL_STEPS - 1) {
+      setStep(fromStep + 1);
     }
+  };
+
+  const handleStepSubmit = () => {
+    const s = stepRef.current;
+    switch (s) {
+      case 0:
+        if (record.fieldId.length > 0) advanceStep(s);
+        break;
+      case 1:
+        advanceStep(s);
+        break;
+      case 3:
+        if (record.district.length > 0) advanceStep(s);
+        break;
+      case 4:
+        if (record.block.length > 0) advanceStep(s);
+        break;
+      case 5:
+        if (record.village.length > 0) advanceStep(s);
+        break;
+      case 6:
+        if (record.fieldAreaAcres.length > 0) advanceStep(s);
+        break;
+    }
+  };
+
+  const handleFinalStep = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    record.currentPhase = 4;
+    await saveRecord(record);
+    router.push({ pathname: '/photo-walk', params: { recordId: record.id } });
   };
 
   const prevStep = () => {
@@ -93,6 +116,16 @@ export default function FieldEntryScreen() {
       router.back();
     }
   };
+
+  useEffect(() => {
+    if (step === 1 && record.collectionDate) {
+      const timer = setTimeout(() => advanceStep(1), 600);
+      return () => clearTimeout(timer);
+    }
+    if (step === 2 && gpsStatus === 'idle') {
+      captureGps();
+    }
+  }, [step]);
 
   useEffect(() => {
     saveRecord(record);
@@ -107,16 +140,26 @@ export default function FieldEntryScreen() {
             value={record.fieldId}
             onChangeText={(v) => update('fieldId', v)}
             placeholder="e.g. F001"
+            autoFocus={true}
+            onSubmit={handleStepSubmit}
           />
         );
       case 1:
         return (
-          <StepInput
-            label={t('collectionDate', language)}
-            value={record.collectionDate}
-            onChangeText={(v) => update('collectionDate', v)}
-            placeholder="YYYY-MM-DD"
-          />
+          <View>
+            <StepInput
+              label={t('collectionDate', language)}
+              value={record.collectionDate}
+              onChangeText={(v) => update('collectionDate', v)}
+              placeholder="YYYY-MM-DD"
+              autoFocus={true}
+              onSubmit={handleStepSubmit}
+            />
+            <View style={styles.autoAdvanceHint}>
+              <Ionicons name="time-outline" size={14} color={Colors.textLight} />
+              <Text style={styles.autoAdvanceText}>Auto-advancing...</Text>
+            </View>
+          </View>
         );
       case 2:
         return (
@@ -134,22 +177,15 @@ export default function FieldEntryScreen() {
                     Accuracy: {record.gpsAccuracy?.toFixed(0)}m
                   </Text>
                 </View>
+                <View style={styles.autoAdvanceHint}>
+                  <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                </View>
               </View>
             ) : (
-              <Pressable
-                style={({ pressed }) => [styles.gpsBtn, pressed && { opacity: 0.8 }]}
-                onPress={captureGps}
-                disabled={gpsStatus === 'capturing'}
-              >
-                <Ionicons
-                  name={gpsStatus === 'capturing' ? 'radio' : 'navigate'}
-                  size={24}
-                  color={Colors.white}
-                />
-                <Text style={styles.gpsBtnText}>
-                  {gpsStatus === 'capturing' ? t('gpsCapturing', language) : t('captureGps', language)}
-                </Text>
-              </Pressable>
+              <View style={styles.gpsCapturing}>
+                <Ionicons name="radio" size={28} color={Colors.primary} />
+                <Text style={styles.gpsBtnText}>{t('gpsCapturing', language)}</Text>
+              </View>
             )}
           </View>
         );
@@ -160,6 +196,8 @@ export default function FieldEntryScreen() {
             value={record.district}
             onChangeText={(v) => update('district', v)}
             placeholder="e.g. Ranchi"
+            autoFocus={true}
+            onSubmit={handleStepSubmit}
           />
         );
       case 4:
@@ -169,6 +207,8 @@ export default function FieldEntryScreen() {
             value={record.block}
             onChangeText={(v) => update('block', v)}
             placeholder="e.g. Kanke"
+            autoFocus={true}
+            onSubmit={handleStepSubmit}
           />
         );
       case 5:
@@ -178,6 +218,8 @@ export default function FieldEntryScreen() {
             value={record.village}
             onChangeText={(v) => update('village', v)}
             placeholder="e.g. Dhurwa"
+            autoFocus={true}
+            onSubmit={handleStepSubmit}
           />
         );
       case 6:
@@ -189,6 +231,9 @@ export default function FieldEntryScreen() {
               onChangeText={handleAcresChange}
               keyboardType="decimal-pad"
               placeholder="e.g. 2.5"
+              autoFocus={true}
+              onSubmit={handleStepSubmit}
+              returnKeyType="done"
             />
             {record.fieldAreaHectares ? (
               <View style={styles.calcCard}>
@@ -222,6 +267,14 @@ export default function FieldEntryScreen() {
               <Text style={styles.summaryLabel}>{t('fieldArea', language)}</Text>
               <Text style={styles.summaryValue}>{record.fieldAreaAcres} ac / {record.fieldAreaHectares} ha</Text>
             </View>
+
+            <Pressable
+              style={({ pressed }) => [styles.startWalkBtn, pressed && { transform: [{ scale: 0.97 }] }]}
+              onPress={handleFinalStep}
+            >
+              <Ionicons name="walk" size={22} color={Colors.white} />
+              <Text style={styles.startWalkText}>{t('startFieldWalk', language)}</Text>
+            </Pressable>
           </View>
         );
       default:
@@ -256,7 +309,7 @@ export default function FieldEntryScreen() {
         <ProgressBar current={step + 1} total={TOTAL_STEPS} />
       </LinearGradient>
 
-      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 100 }}>
+      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 40 }} keyboardShouldPersistTaps="handled">
         <View style={styles.stepCard}>
           <View style={styles.stepHeader}>
             <View style={styles.stepBadge}>
@@ -267,23 +320,6 @@ export default function FieldEntryScreen() {
           {renderStep()}
         </View>
       </ScrollView>
-
-      <View style={[styles.footer, { paddingBottom: bottomPad + 16 }]}>
-        <Pressable
-          style={({ pressed }) => [
-            styles.nextBtn,
-            !canProceed() && styles.nextBtnDisabled,
-            pressed && canProceed() && { transform: [{ scale: 0.97 }] },
-          ]}
-          onPress={nextStep}
-          disabled={!canProceed()}
-        >
-          <Text style={styles.nextBtnText}>
-            {step === TOTAL_STEPS - 1 ? t('startFieldWalk', language) : t('next', language)}
-          </Text>
-          <Ionicons name="arrow-forward" size={20} color={Colors.white} />
-        </Pressable>
-      </View>
     </View>
   );
 }
@@ -386,19 +422,19 @@ const styles = StyleSheet.create({
     color: Colors.textLight,
     marginTop: 2,
   },
-  gpsBtn: {
+  gpsCapturing: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.primary,
+    backgroundColor: Colors.surfaceAlt,
     borderRadius: 12,
-    padding: 16,
-    gap: 10,
+    padding: 20,
+    gap: 12,
     justifyContent: 'center',
   },
   gpsBtnText: {
     fontSize: 16,
-    fontFamily: 'Nunito_700Bold',
-    color: Colors.white,
+    fontFamily: 'Nunito_600SemiBold',
+    color: Colors.primary,
   },
   calcCard: {
     flexDirection: 'row',
@@ -443,32 +479,30 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito_600SemiBold',
     color: Colors.text,
   },
-  footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-  },
-  nextBtn: {
+  startWalkBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: Colors.primary,
     borderRadius: 16,
     paddingVertical: 16,
-    gap: 8,
+    gap: 10,
+    marginTop: 28,
   },
-  nextBtnDisabled: {
-    backgroundColor: Colors.borderLight,
-  },
-  nextBtnText: {
+  startWalkText: {
     fontSize: 17,
     fontFamily: 'Nunito_700Bold',
     color: Colors.white,
+  },
+  autoAdvanceHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+  },
+  autoAdvanceText: {
+    fontSize: 12,
+    fontFamily: 'Nunito_400Regular',
+    color: Colors.textLight,
   },
 });

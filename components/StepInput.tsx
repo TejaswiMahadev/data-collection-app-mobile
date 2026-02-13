@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
@@ -13,6 +13,9 @@ interface StepInputProps {
   rightIcon?: string;
   onRightPress?: () => void;
   multiline?: boolean;
+  onSubmit?: () => void;
+  autoFocus?: boolean;
+  returnKeyType?: 'done' | 'next' | 'go';
 }
 
 export function StepInput({
@@ -25,12 +28,27 @@ export function StepInput({
   rightIcon,
   onRightPress,
   multiline,
+  onSubmit,
+  autoFocus = false,
+  returnKeyType = 'next',
 }: StepInputProps) {
+  const inputRef = useRef<TextInput>(null);
+
+  useEffect(() => {
+    if (autoFocus && editable) {
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [autoFocus, editable]);
+
   return (
     <View style={styles.container}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.inputRow}>
         <TextInput
+          ref={inputRef}
           style={[styles.input, multiline && { height: 80, textAlignVertical: 'top' as const }, !editable && styles.disabled]}
           value={value}
           onChangeText={onChangeText}
@@ -39,6 +57,13 @@ export function StepInput({
           placeholderTextColor={Colors.textLight}
           editable={editable}
           multiline={multiline}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={() => {
+            if (onSubmit && value.length > 0) {
+              onSubmit();
+            }
+          }}
+          blurOnSubmit={true}
         />
         {rightIcon && onRightPress && (
           <Pressable style={styles.rightBtn} onPress={onRightPress}>
