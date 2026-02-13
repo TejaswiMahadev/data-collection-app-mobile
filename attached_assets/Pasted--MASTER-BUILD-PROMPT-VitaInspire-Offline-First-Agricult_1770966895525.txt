@@ -1,0 +1,449 @@
+🔥 MASTER BUILD PROMPT
+VitaInspire – Offline-First Agricultural Mobile App (Structured Workflow)
+
+I want to build a production-ready Android mobile application using Flutter.
+
+App Name: VitaInspire – Smart Crop Data App
+
+This is an offline-first, multilingual, step-based agricultural field data collection app with structured photo capture workflow.
+
+This is NOT a simple form app.
+
+🎯 APP PURPOSE
+
+The app will be used by field officers in rural India (Jharkhand, Odisha, Chhattisgarh) to collect maize harvest and agronomic data using a structured, guided workflow.
+
+The app must:
+
+Work 100% offline
+
+Auto-save continuously
+
+Guide field movement physically
+
+Enforce structured photo sequence
+
+Be farmer-friendly and multilingual
+
+Sync data intelligently when internet is available
+
+🟢 TECH STACK REQUIREMENTS
+
+Framework: Flutter
+Local Database: Hive or SQLite
+Camera: image_picker or camera package
+Background Sync: WorkManager
+Localization: Flutter Intl
+Audio: audioplayers
+Backend API (placeholder): https://api.vitainspire.com
+
+🌱 FULL WORKFLOW IMPLEMENTATION
+PHASE 0 – APP OPEN FLOW
+Splash Screen
+
+Animated plant logo
+
+Display text: “VitaInspire”
+
+Subtitle: “Smart Farming. Better Yield.”
+
+Smooth fade animation (3 seconds)
+
+Auto-transition to next screen
+
+PHASE 1 – FARMER SELFIE
+
+Screen Title:
+“Apni Tasveer Kheechiye 📸”
+
+Requirements:
+
+Open front camera automatically
+
+Circular selfie overlay
+
+Capture → Preview → Confirm/Retake
+
+Save locally as:
+FarmerID_Timestamp.jpg
+
+After confirmation → move to Dashboard.
+
+PHASE 2 – DASHBOARD
+
+Buttons:
+
+🆕 New Field Entry
+📋 My Records
+🔄 Sync Data
+⚙ Settings
+
+Show sync status badge.
+
+PHASE 3 – FIELD ENTRY (STRUCTURED FLOW)
+
+IMPORTANT:
+Only ONE input visible at a time.
+Next field unlocks only after current field is filled.
+
+Smooth slide animations.
+Auto-save after each step.
+
+STEP GROUP A – FIELD IDENTIFICATION
+
+Capture:
+
+Field ID
+
+Collection Date (auto default today)
+
+GPS auto-capture (lat, long, accuracy)
+
+District
+
+Block
+
+Village
+
+Field Area (Acres)
+
+Auto-calc Hectares
+
+All inputs must auto-save locally.
+
+After completion:
+Unlock “Start Field Walk”
+
+PHASE 4 – STRUCTURED PHOTO WALK MODE
+
+This must be enforced sequentially.
+
+User cannot skip steps.
+
+STEP 1 – Field Overview (Entrance)
+
+Instruction box:
+“Field ke entrance se poora khet ka seedha photo lijiye.”
+
+Requirements:
+
+Landscape mode only
+
+Grid overlay
+
+Horizon guide line
+
+Auto-save GPS per photo
+
+Auto-compress image
+
+Auto-rename:
+FieldID_Entry.jpg
+
+After capture → unlock next.
+
+STEP 2 – Center Field Photo
+
+Instruction:
+“Ab field ke beech khade hokar saamne ka photo lijiye.”
+
+Requirements:
+
+GPS capture
+
+Save as:
+FieldID_Center.jpg
+
+STEP 3 – Zone Identification
+
+Display 3 large buttons:
+
+🟢 Zone A – Good
+🟡 Zone B – Medium
+🔴 Zone C – Weak
+
+Must complete in order A → B → C.
+
+FOR EACH ZONE (A, B, C)
+
+Each zone must follow this exact sequence:
+
+1️⃣ Standing Crop Photo
+2️⃣ Cob Close-up Photo
+3️⃣ Zone Data Inputs
+
+Photo requirements:
+
+Landscape mode
+
+Overlay frame guide
+
+Blur detection (basic threshold)
+
+Auto compression
+
+GPS capture
+
+Auto rename:
+FieldID_ZoneA_Crop.jpg
+FieldID_ZoneA_Cob.jpg
+
+Zone Data Inputs (rolling unlock):
+
+Plant Height
+
+Plant Color
+
+Stand Density
+
+Cob Size Observed
+
+Number of Plants Sampled
+
+Zone marked complete only after:
+Photos + inputs done.
+
+PHASE 5 – AGRONOMIC DATA ENTRY
+
+Now unlock structured agronomy data:
+
+Crop Info
+
+Variety
+
+Seed Company
+
+Seed Type
+
+Harvest Date
+
+Yield
+
+Total Harvest Weight
+
+Moisture %
+
+Auto Dry Weight
+
+Auto Yield kg/ha
+
+Auto Yield quintals/acre
+
+Fertilizer
+
+Sowing Date
+
+Growing Days (auto)
+
+Basal Fertilizer
+
+Top Dressing 1
+
+Top Dressing 2
+
+Organic Manure
+
+Irrigation
+
+Type
+
+Number
+
+Water Source
+
+Pest & Disease
+
+Major Pest
+
+Pest Severity
+
+Disease
+
+Pesticide Used
+
+Soil
+
+Soil Type
+
+pH
+
+Organic Carbon
+
+NPK
+
+Previous Crop
+
+Stress
+
+Rainfall Pattern
+
+Drought
+
+Heat
+
+Lodging
+
+Stand Quality
+
+Cob Size
+
+Grain Fill Quality
+
+All must be rolling unlock style.
+
+PHASE 6 – FINAL PHOTOS
+
+Capture:
+
+Harvest Photo
+
+Weighment Photo
+
+Farmer Photo (if not captured earlier)
+
+Camera only, no gallery upload.
+
+PHASE 7 – FARMER & COLLECTOR INFO
+
+Farmer Name
+
+Phone
+
+Land Ownership
+
+Consent
+
+Collector Name
+
+Collector Phone
+
+Time Spent
+
+PHASE 8 – REVIEW SCREEN
+
+Show summary cards:
+
+Field Info
+
+Yield
+
+Zones completion
+
+Photo count
+
+Data Quality Flag
+
+Allow edit.
+
+Buttons:
+
+💾 Save Locally
+🔄 Sync Now
+
+OFFLINE-FIRST REQUIREMENTS
+
+All data saved locally immediately
+
+Sync status per record
+
+Background sync retry logic
+
+Structured data uploaded first
+
+Images uploaded separately
+
+If no internet → show:
+“Data surakshit hai. Internet uplabdh nahi.”
+
+MULTILINGUAL SUPPORT
+
+Languages:
+
+English
+
+Hindi
+
+Odia
+
+All text must use localization files.
+
+Add language switch in settings.
+
+AUDIO INSTRUCTIONS
+
+Each major step must include:
+🔊 Play Instruction button
+
+Audio must work offline.
+
+UI DESIGN REQUIREMENTS
+
+Theme:
+
+Green primary
+
+Yellow accent
+
+White background
+
+Design:
+
+Rounded cards
+
+Large fonts
+
+High contrast
+
+Progress bar
+
+Completion tick indicators
+
+Smooth transitions
+
+Farmer-friendly language (no technical jargon)
+
+VALIDATION RULES
+
+Phone = 10 digits
+
+Yield must be positive
+
+Moisture ≤ 50%
+
+All 3 zones mandatory
+
+All required photos mandatory
+
+DATABASE STRUCTURE
+
+Create local models:
+
+FieldRecord
+
+ZoneData
+
+PhotoData
+
+SyncStatus
+
+UserProfile
+
+DELIVERABLES REQUIRED
+
+Flutter project structure
+
+Screen flow implementation
+
+Local DB service
+
+Sync manager
+
+Camera overlay implementation
+
+Localization setup
+
+Audio integration
+
+API integration stub
+
+Code must be production-grade, modular, clean architecture.
