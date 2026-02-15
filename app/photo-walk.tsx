@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, SlideInRight } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
@@ -20,7 +21,8 @@ export default function PhotoWalkScreen() {
   const { language } = useApp();
   const { recordId } = useLocalSearchParams<{ recordId: string }>();
   const [record, setRecord] = useState<FieldRecord | null>(null);
-  const [phase, setPhase] = useState<'entry' | 'center' | 'zones'>('entry');
+  const [step, setStep] = useState(0);
+  const advancedRef = useRef<Record<string, boolean>>({});
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
@@ -72,11 +74,21 @@ export default function PhotoWalkScreen() {
     }
   };
 
-  const goToZones = () => {
-    if (record) {
-      router.push({ pathname: '/zone-capture', params: { recordId: record.id } });
+  useEffect(() => {
+    if (!record) return;
+    if (step === 0 && record.entryPhotoUri && !advancedRef.current['entry']) {
+      advancedRef.current['entry'] = true;
+      const timer = setTimeout(() => setStep(1), 600);
+      return () => clearTimeout(timer);
     }
-  };
+    if (step === 1 && record.centerPhotoUri && !advancedRef.current['center']) {
+      advancedRef.current['center'] = true;
+      const timer = setTimeout(() => {
+        router.push({ pathname: '/zone-capture', params: { recordId: record.id } });
+      }, 600);
+      return () => clearTimeout(timer);
+    }
+  }, [record, step]);
 
   if (!record) {
     return (
@@ -88,7 +100,44 @@ export default function PhotoWalkScreen() {
 
   const entryDone = !!record.entryPhotoUri;
   const centerDone = !!record.centerPhotoUri;
-  const progress = (entryDone ? 1 : 0) + (centerDone ? 1 : 0);
+
+  const renderPhotoStep = (type: 'entry' | 'center', title: string, instruction: string, uri?: string, lat?: number, lng?: number) => (
+    <View style={styles.card}>
+      <View style={styles.cardHeader}>
+        <View style={[styles.stepDot, uri ? styles.stepDotDone : {}]}>
+          {uri ? <Ionicons name="checkmark" size={16} color={Colors.white} /> : <Text style={styles.stepDotText}>{type === 'entry' ? '1' : '2'}</Text>}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.cardTitle}>{title}</Text>
+          <Text style={styles.cardInstruction}>{instruction}</Text>
+        </View>
+      </View>
+
+      {uri ? (
+        <Animated.View entering={FadeIn.duration(400)} style={styles.photoPreview}>
+          <Image source={{ uri }} style={styles.previewImage} contentFit="cover" />
+          <View style={styles.gpsTag}>
+            <Ionicons name="location" size={12} color={Colors.white} />
+            <Text style={styles.gpsTagText}>
+              {lat?.toFixed(4)}, {lng?.toFixed(4)}
+            </Text>
+          </View>
+          <View style={styles.autoTag}>
+            <Ionicons name="checkmark-circle" size={14} color={Colors.white} />
+            <Text style={styles.autoTagText}>Moving on...</Text>
+          </View>
+        </Animated.View>
+      ) : (
+        <Pressable
+          style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
+          onPress={() => takePhoto(type)}
+        >
+          <Ionicons name="camera" size={32} color={Colors.primary} />
+          <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
+        </Pressable>
+      )}
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -103,99 +152,18 @@ export default function PhotoWalkScreen() {
           <Text style={styles.headerTitle}>{t('fieldOverview', language)}</Text>
           <View style={{ width: 40 }} />
         </View>
-        <ProgressBar current={progress} total={2} />
+        <ProgressBar current={step + 1} total={2} />
       </LinearGradient>
 
-      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 100 }}>
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.stepDot, entryDone && styles.stepDotDone]}>
-              {entryDone ? (
-                <Ionicons name="checkmark" size={16} color={Colors.white} />
-              ) : (
-                <Text style={styles.stepDotText}>1</Text>
-              )}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{t('fieldOverview', language)}</Text>
-              <Text style={styles.cardInstruction}>{t('fieldOverviewInstruction', language)}</Text>
-            </View>
-          </View>
-
-          {record.entryPhotoUri ? (
-            <View style={styles.photoPreview}>
-              <Image source={{ uri: record.entryPhotoUri }} style={styles.previewImage} contentFit="cover" />
-              <View style={styles.gpsTag}>
-                <Ionicons name="location" size={12} color={Colors.white} />
-                <Text style={styles.gpsTagText}>
-                  {record.entryPhotoLat?.toFixed(4)}, {record.entryPhotoLng?.toFixed(4)}
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <Pressable
-              style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
-              onPress={() => takePhoto('entry')}
-            >
-              <Ionicons name="camera" size={32} color={Colors.primary} />
-              <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
-            </Pressable>
-          )}
-        </View>
-
-        <View style={[styles.card, !entryDone && styles.cardLocked]}>
-          <View style={styles.cardHeader}>
-            <View style={[styles.stepDot, centerDone && styles.stepDotDone]}>
-              {centerDone ? (
-                <Ionicons name="checkmark" size={16} color={Colors.white} />
-              ) : (
-                <Text style={styles.stepDotText}>2</Text>
-              )}
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{t('centerField', language)}</Text>
-              <Text style={styles.cardInstruction}>{t('centerFieldInstruction', language)}</Text>
-            </View>
-          </View>
-
-          {!entryDone ? (
-            <View style={styles.lockedOverlay}>
-              <Ionicons name="lock-closed" size={24} color={Colors.textLight} />
-              <Text style={styles.lockedText}>Complete previous step</Text>
-            </View>
-          ) : record.centerPhotoUri ? (
-            <View style={styles.photoPreview}>
-              <Image source={{ uri: record.centerPhotoUri }} style={styles.previewImage} contentFit="cover" />
-              <View style={styles.gpsTag}>
-                <Ionicons name="location" size={12} color={Colors.white} />
-                <Text style={styles.gpsTagText}>
-                  {record.centerPhotoLat?.toFixed(4)}, {record.centerPhotoLng?.toFixed(4)}
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <Pressable
-              style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
-              onPress={() => takePhoto('center')}
-            >
-              <Ionicons name="camera" size={32} color={Colors.primary} />
-              <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
-            </Pressable>
-          )}
-        </View>
+      <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 40 }}>
+        <Animated.View
+          key={`photo-step-${step}`}
+          entering={Platform.OS === 'web' ? FadeIn.duration(250) : SlideInRight.duration(300).springify().damping(20)}
+        >
+          {step === 0 && renderPhotoStep('entry', t('fieldOverview', language), t('fieldOverviewInstruction', language), record.entryPhotoUri, record.entryPhotoLat, record.entryPhotoLng)}
+          {step === 1 && renderPhotoStep('center', t('centerField', language), t('centerFieldInstruction', language), record.centerPhotoUri, record.centerPhotoLat, record.centerPhotoLng)}
+        </Animated.View>
       </ScrollView>
-
-      {entryDone && centerDone && (
-        <View style={[styles.footer, { paddingBottom: bottomPad + 16 }]}>
-          <Pressable
-            style={({ pressed }) => [styles.nextBtn, pressed && { transform: [{ scale: 0.97 }] }]}
-            onPress={goToZones}
-          >
-            <Text style={styles.nextBtnText}>{t('zoneIdentification', language)}</Text>
-            <Ionicons name="arrow-forward" size={20} color={Colors.white} />
-          </Pressable>
-        </View>
-      )}
     </View>
   );
 }
@@ -249,9 +217,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
-  },
-  cardLocked: {
-    opacity: 0.5,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -329,39 +294,21 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito_400Regular',
     color: Colors.white,
   },
-  lockedOverlay: {
-    alignItems: 'center',
-    padding: 24,
-    gap: 8,
-  },
-  lockedText: {
-    fontSize: 14,
-    fontFamily: 'Nunito_400Regular',
-    color: Colors.textLight,
-  },
-  footer: {
+  autoTag: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-  },
-  nextBtn: {
+    bottom: 8,
+    right: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    paddingVertical: 16,
-    gap: 8,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    gap: 4,
   },
-  nextBtnText: {
-    fontSize: 17,
-    fontFamily: 'Nunito_700Bold',
+  autoTagText: {
+    fontSize: 11,
+    fontFamily: 'Nunito_400Regular',
     color: Colors.white,
   },
 });

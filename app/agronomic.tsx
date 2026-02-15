@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Keyboard } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, SlideInRight } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp } from '@/lib/AppContext';
@@ -36,14 +37,12 @@ export default function AgronomicScreen() {
   const { recordId } = useLocalSearchParams<{ recordId: string }>();
   const [record, setRecord] = useState<FieldRecord | null>(null);
   const [sectionIdx, setSectionIdx] = useState(0);
-  const sectionIdxRef = useRef(0);
+  const recordRef = useRef<FieldRecord | null>(null);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
 
-  useEffect(() => {
-    sectionIdxRef.current = sectionIdx;
-  }, [sectionIdx]);
+  useEffect(() => { recordRef.current = record; }, [record]);
 
   useEffect(() => {
     if (recordId) {
@@ -51,9 +50,9 @@ export default function AgronomicScreen() {
     }
   }, []);
 
-  const update = (key: keyof FieldRecord, value: any) => {
-    if (!record) return;
-    const updated = { ...record, [key]: value };
+  const update = useCallback((key: keyof FieldRecord, value: any) => {
+    if (!recordRef.current) return;
+    const updated = { ...recordRef.current, [key]: value };
 
     if (key === 'totalHarvestWeight' || key === 'moisturePercent') {
       const weight = parseFloat(key === 'totalHarvestWeight' ? value : updated.totalHarvestWeight);
@@ -82,28 +81,24 @@ export default function AgronomicScreen() {
     }
 
     setRecord(updated);
+    recordRef.current = updated;
     saveRecord(updated);
-  };
+  }, []);
 
-  const advanceSection = () => {
+  const advanceSection = useCallback(() => {
+    Keyboard.dismiss();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const idx = sectionIdxRef.current;
-    if (idx < SECTIONS.length - 1) {
-      setSectionIdx(idx + 1);
-    } else {
-      if (record) {
-        router.push({ pathname: '/final-photos', params: { recordId: record.id } });
+    setSectionIdx(prev => {
+      if (prev < SECTIONS.length - 1) {
+        return prev + 1;
+      } else {
+        if (recordRef.current) {
+          router.push({ pathname: '/final-photos', params: { recordId: recordRef.current.id } });
+        }
+        return prev;
       }
-    }
-  };
-
-  const updateAndCheckAutoAdvance = (key: keyof FieldRecord, value: any, sectionKey: SectionKey) => {
-    update(key, value);
-
-    if (sectionKey === 'irrigation') {
-      setTimeout(() => advanceSection(), 500);
-    }
-  };
+    });
+  }, []);
 
   if (!record) {
     return (
@@ -120,21 +115,21 @@ export default function AgronomicScreen() {
       case 'crop':
         return (
           <>
-            <StepInput label={t('variety', language)} value={record.variety} onChangeText={(v) => update('variety', v)} placeholder="e.g. DHM 117" autoFocus={true} onSubmit={() => {}} />
-            <StepInput label={t('seedCompany', language)} value={record.seedCompany} onChangeText={(v) => update('seedCompany', v)} placeholder="e.g. Pioneer" onSubmit={() => {}} />
+            <StepInput label={t('variety', language)} value={record.variety} onChangeText={(v) => update('variety', v)} placeholder="e.g. DHM 117" autoFocus={true} autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('seedCompany', language)} value={record.seedCompany} onChangeText={(v) => update('seedCompany', v)} placeholder="e.g. Pioneer" autoAdvanceDelay={1200} onSubmit={() => {}} />
             <StepPicker label={t('seedType', language)} value={record.seedType} options={[
               { label: 'Hybrid', value: 'hybrid' },
               { label: 'OPV', value: 'opv' },
               { label: 'Local', value: 'local' },
-            ]} onSelect={(v) => update('seedType', v)} />
-            <StepInput label={t('harvestDate', language)} value={record.harvestDate} onChangeText={(v) => update('harvestDate', v)} placeholder="YYYY-MM-DD" returnKeyType="done" onSubmit={advanceSection} />
+            ]} onSelect={(v) => { update('seedType', v); }} />
+            <StepInput label={t('harvestDate', language)} value={record.harvestDate} onChangeText={(v) => update('harvestDate', v)} placeholder="YYYY-MM-DD" autoAdvanceLength={10} returnKeyType="done" onSubmit={advanceSection} />
           </>
         );
       case 'yield':
         return (
           <>
-            <StepInput label={t('totalHarvestWeight', language)} value={record.totalHarvestWeight} onChangeText={(v) => update('totalHarvestWeight', v)} keyboardType="decimal-pad" placeholder="e.g. 500" autoFocus={true} onSubmit={() => {}} />
-            <StepInput label={t('moisturePercent', language)} value={record.moisturePercent} onChangeText={(v) => update('moisturePercent', v)} keyboardType="decimal-pad" placeholder="e.g. 14" returnKeyType="done" onSubmit={advanceSection} />
+            <StepInput label={t('totalHarvestWeight', language)} value={record.totalHarvestWeight} onChangeText={(v) => update('totalHarvestWeight', v)} keyboardType="decimal-pad" placeholder="e.g. 500 kg" autoFocus={true} autoAdvanceDelay={1500} onSubmit={() => {}} />
+            <StepInput label={t('moisturePercent', language)} value={record.moisturePercent} onChangeText={(v) => update('moisturePercent', v)} keyboardType="decimal-pad" placeholder="e.g. 14" autoAdvanceDelay={1500} returnKeyType="done" onSubmit={advanceSection} />
             <StepInput label={t('dryWeight', language)} value={record.dryWeight} onChangeText={() => {}} editable={false} />
             <StepInput label={t('yieldKgHa', language)} value={record.yieldKgHa} onChangeText={() => {}} editable={false} />
             <StepInput label={t('yieldQuintalsAcre', language)} value={record.yieldQuintalsAcre} onChangeText={() => {}} editable={false} />
@@ -143,12 +138,12 @@ export default function AgronomicScreen() {
       case 'fertilizer':
         return (
           <>
-            <StepInput label={t('sowingDate', language)} value={record.sowingDate} onChangeText={(v) => update('sowingDate', v)} placeholder="YYYY-MM-DD" autoFocus={true} onSubmit={() => {}} />
+            <StepInput label={t('sowingDate', language)} value={record.sowingDate} onChangeText={(v) => update('sowingDate', v)} placeholder="YYYY-MM-DD" autoFocus={true} autoAdvanceLength={10} onSubmit={() => {}} />
             <StepInput label={t('growingDays', language)} value={record.growingDays} onChangeText={() => {}} editable={false} />
-            <StepInput label={t('basalFertilizer', language)} value={record.basalFertilizer} onChangeText={(v) => update('basalFertilizer', v)} placeholder="e.g. DAP 50kg" onSubmit={() => {}} />
-            <StepInput label={t('topDressing1', language)} value={record.topDressing1} onChangeText={(v) => update('topDressing1', v)} placeholder="e.g. Urea 30kg" onSubmit={() => {}} />
-            <StepInput label={t('topDressing2', language)} value={record.topDressing2} onChangeText={(v) => update('topDressing2', v)} placeholder="e.g. MOP 20kg" onSubmit={() => {}} />
-            <StepInput label={t('organicManure', language)} value={record.organicManure} onChangeText={(v) => update('organicManure', v)} placeholder="e.g. FYM 2 ton" returnKeyType="done" onSubmit={advanceSection} />
+            <StepInput label={t('basalFertilizer', language)} value={record.basalFertilizer} onChangeText={(v) => update('basalFertilizer', v)} placeholder="e.g. DAP 50kg" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('topDressing1', language)} value={record.topDressing1} onChangeText={(v) => update('topDressing1', v)} placeholder="e.g. Urea 30kg" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('topDressing2', language)} value={record.topDressing2} onChangeText={(v) => update('topDressing2', v)} placeholder="e.g. MOP 20kg" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('organicManure', language)} value={record.organicManure} onChangeText={(v) => update('organicManure', v)} placeholder="e.g. FYM 2 ton" autoAdvanceDelay={1200} returnKeyType="done" onSubmit={advanceSection} />
           </>
         );
       case 'irrigation':
@@ -159,14 +154,14 @@ export default function AgronomicScreen() {
               { label: t('irrigated', language), value: 'irrigated' },
               { label: t('partial', language), value: 'partial' },
             ]} onSelect={(v) => update('irrigationType', v)} />
-            <StepInput label={t('irrigationNumber', language)} value={record.irrigationNumber} onChangeText={(v) => update('irrigationNumber', v)} keyboardType="numeric" placeholder="e.g. 3" onSubmit={() => {}} />
-            <StepInput label={t('waterSource', language)} value={record.waterSource} onChangeText={(v) => update('waterSource', v)} placeholder="e.g. Borewell" returnKeyType="done" onSubmit={advanceSection} />
+            <StepInput label={t('irrigationNumber', language)} value={record.irrigationNumber} onChangeText={(v) => update('irrigationNumber', v)} keyboardType="numeric" placeholder="e.g. 3" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('waterSource', language)} value={record.waterSource} onChangeText={(v) => update('waterSource', v)} placeholder="e.g. Borewell" autoAdvanceDelay={1200} returnKeyType="done" onSubmit={advanceSection} />
           </>
         );
       case 'pest':
         return (
           <>
-            <StepInput label={t('majorPest', language)} value={record.majorPest} onChangeText={(v) => update('majorPest', v)} placeholder="e.g. Stem borer" autoFocus={true} onSubmit={() => {}} />
+            <StepInput label={t('majorPest', language)} value={record.majorPest} onChangeText={(v) => update('majorPest', v)} placeholder="e.g. Stem borer" autoFocus={true} autoAdvanceDelay={1200} onSubmit={() => {}} />
             <StepPicker label={t('pestSeverity', language)} value={record.pestSeverity} options={[
               { label: t('none', language), value: 'none' },
               { label: t('low', language), value: 'low' },
@@ -174,8 +169,8 @@ export default function AgronomicScreen() {
               { label: t('high', language), value: 'high' },
               { label: t('severe', language), value: 'severe' },
             ]} onSelect={(v) => update('pestSeverity', v)} />
-            <StepInput label={t('disease', language)} value={record.disease} onChangeText={(v) => update('disease', v)} placeholder="e.g. Leaf blight" onSubmit={() => {}} />
-            <StepInput label={t('pesticideUsed', language)} value={record.pesticideUsed} onChangeText={(v) => update('pesticideUsed', v)} placeholder="e.g. Chlorpyrifos" returnKeyType="done" onSubmit={advanceSection} />
+            <StepInput label={t('disease', language)} value={record.disease} onChangeText={(v) => update('disease', v)} placeholder="e.g. Leaf blight" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('pesticideUsed', language)} value={record.pesticideUsed} onChangeText={(v) => update('pesticideUsed', v)} placeholder="e.g. Chlorpyrifos" autoAdvanceDelay={1200} returnKeyType="done" onSubmit={advanceSection} />
           </>
         );
       case 'soil':
@@ -187,10 +182,10 @@ export default function AgronomicScreen() {
               { label: t('clayey', language), value: 'clayey' },
               { label: t('laterite', language), value: 'laterite' },
             ]} onSelect={(v) => update('soilType', v)} />
-            <StepInput label={t('soilPh', language)} value={record.soilPh} onChangeText={(v) => update('soilPh', v)} keyboardType="decimal-pad" placeholder="e.g. 6.5" onSubmit={() => {}} />
-            <StepInput label={t('organicCarbon', language)} value={record.organicCarbon} onChangeText={(v) => update('organicCarbon', v)} placeholder="e.g. 0.5%" onSubmit={() => {}} />
-            <StepInput label={t('npk', language)} value={record.npk} onChangeText={(v) => update('npk', v)} placeholder="e.g. 120:60:40" onSubmit={() => {}} />
-            <StepInput label={t('previousCrop', language)} value={record.previousCrop} onChangeText={(v) => update('previousCrop', v)} placeholder="e.g. Rice" returnKeyType="done" onSubmit={advanceSection} />
+            <StepInput label={t('soilPh', language)} value={record.soilPh} onChangeText={(v) => update('soilPh', v)} keyboardType="decimal-pad" placeholder="e.g. 6.5" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('organicCarbon', language)} value={record.organicCarbon} onChangeText={(v) => update('organicCarbon', v)} placeholder="e.g. 0.5%" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('npk', language)} value={record.npk} onChangeText={(v) => update('npk', v)} placeholder="e.g. 120:60:40" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('previousCrop', language)} value={record.previousCrop} onChangeText={(v) => update('previousCrop', v)} placeholder="e.g. Rice" autoAdvanceDelay={1200} returnKeyType="done" onSubmit={advanceSection} />
           </>
         );
       case 'stress':
@@ -263,10 +258,14 @@ export default function AgronomicScreen() {
       </LinearGradient>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 40 }} keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>
+        <Animated.View
+          key={`agro-${sectionIdx}`}
+          entering={Platform.OS === 'web' ? FadeIn.duration(250) : SlideInRight.duration(300).springify().damping(20)}
+          style={styles.card}
+        >
           <Text style={styles.cardTitle}>{getSectionTitle(section, language)}</Text>
           {renderSection()}
-        </View>
+        </Animated.View>
       </ScrollView>
     </View>
   );

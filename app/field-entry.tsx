@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert } from 'react-native';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert, Keyboard } from 'react-native';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, FadeOut, SlideInRight, SlideOutLeft } from 'react-native-reanimated';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
@@ -22,29 +23,38 @@ export default function FieldEntryScreen() {
   const [record, setRecord] = useState<FieldRecord>(createEmptyRecord());
   const [step, setStep] = useState(0);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'capturing' | 'done'>('idle');
-  const stepRef = useRef(step);
+  const gpsAdvancedRef = useRef(false);
+  const recordRef = useRef(record);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
 
   useEffect(() => {
-    stepRef.current = step;
-  }, [step]);
+    recordRef.current = record;
+  }, [record]);
 
-  const update = (key: keyof FieldRecord, value: any) => {
+  const update = useCallback((key: keyof FieldRecord, value: any) => {
     setRecord(prev => ({ ...prev, [key]: value }));
-  };
+  }, []);
 
-  const captureGps = async () => {
+  const goToStep = useCallback((nextStep: number) => {
+    Keyboard.dismiss();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setStep(nextStep);
+  }, []);
+
+  const captureGps = useCallback(async () => {
     setGpsStatus('capturing');
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission needed', 'GPS permission is required');
-        setGpsStatus('idle');
+        setGpsStatus('done');
         return;
       }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Platform.OS === 'web' ? Location.Accuracy.Balanced : Location.Accuracy.High,
+        timeInterval: 5000,
+      });
       setRecord(prev => ({
         ...prev,
         latitude: loc.coords.latitude,
@@ -53,73 +63,50 @@ export default function FieldEntryScreen() {
       }));
       setGpsStatus('done');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setTimeout(() => {
-        advanceStep(2);
-      }, 800);
     } catch (e) {
-      setGpsStatus('idle');
-      Alert.alert('GPS Error', 'Could not capture GPS location');
+      setGpsStatus('done');
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-  };
+  }, []);
 
-  const handleAcresChange = (val: string) => {
+  useEffect(() => {
+    if (gpsStatus === 'done' && step === 2 && !gpsAdvancedRef.current) {
+      gpsAdvancedRef.current = true;
+      const timer = setTimeout(() => {
+        goToStep(3);
+      }, 900);
+      return () => clearTimeout(timer);
+    }
+  }, [gpsStatus, step, goToStep]);
+
+  const handleAcresChange = useCallback((val: string) => {
     const acres = parseFloat(val);
     setRecord(prev => ({
       ...prev,
       fieldAreaAcres: val,
       fieldAreaHectares: !isNaN(acres) ? (acres * 0.404686).toFixed(2) : '',
     }));
-  };
-
-  const advanceStep = (fromStep: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (fromStep < TOTAL_STEPS - 1) {
-      setStep(fromStep + 1);
-    }
-  };
-
-  const handleStepSubmit = () => {
-    const s = stepRef.current;
-    switch (s) {
-      case 0:
-        if (record.fieldId.length > 0) advanceStep(s);
-        break;
-      case 1:
-        advanceStep(s);
-        break;
-      case 3:
-        if (record.district.length > 0) advanceStep(s);
-        break;
-      case 4:
-        if (record.block.length > 0) advanceStep(s);
-        break;
-      case 5:
-        if (record.village.length > 0) advanceStep(s);
-        break;
-      case 6:
-        if (record.fieldAreaAcres.length > 0) advanceStep(s);
-        break;
-    }
-  };
+  }, []);
 
   const handleFinalStep = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    record.currentPhase = 4;
-    await saveRecord(record);
-    router.push({ pathname: '/photo-walk', params: { recordId: record.id } });
+    const r = { ...recordRef.current, currentPhase: 4 };
+    await saveRecord(r);
+    router.push({ pathname: '/photo-walk', params: { recordId: r.id } });
   };
 
-  const prevStep = () => {
+  const prevStep = useCallback(() => {
     if (step > 0) {
+      if (step === 3) gpsAdvancedRef.current = false;
       setStep(step - 1);
     } else {
       router.back();
     }
-  };
+  }, [step]);
 
   useEffect(() => {
     if (step === 1 && record.collectionDate) {
-      const timer = setTimeout(() => advanceStep(1), 600);
+      const timer = setTimeout(() => goToStep(2), 700);
       return () => clearTimeout(timer);
     }
     if (step === 2 && gpsStatus === 'idle') {
@@ -130,157 +117,6 @@ export default function FieldEntryScreen() {
   useEffect(() => {
     saveRecord(record);
   }, [record]);
-
-  const renderStep = () => {
-    switch (step) {
-      case 0:
-        return (
-          <StepInput
-            label={t('fieldId', language)}
-            value={record.fieldId}
-            onChangeText={(v) => update('fieldId', v)}
-            placeholder="e.g. F001"
-            autoFocus={true}
-            onSubmit={handleStepSubmit}
-          />
-        );
-      case 1:
-        return (
-          <View>
-            <StepInput
-              label={t('collectionDate', language)}
-              value={record.collectionDate}
-              onChangeText={(v) => update('collectionDate', v)}
-              placeholder="YYYY-MM-DD"
-              autoFocus={true}
-              onSubmit={handleStepSubmit}
-            />
-            <View style={styles.autoAdvanceHint}>
-              <Ionicons name="time-outline" size={14} color={Colors.textLight} />
-              <Text style={styles.autoAdvanceText}>Auto-advancing...</Text>
-            </View>
-          </View>
-        );
-      case 2:
-        return (
-          <View>
-            <Text style={styles.stepLabel}>{t('gpsLocation', language)}</Text>
-            {gpsStatus === 'done' ? (
-              <View style={styles.gpsCard}>
-                <Ionicons name="location" size={24} color={Colors.success} />
-                <View style={{ flex: 1, marginLeft: 12 }}>
-                  <Text style={styles.gpsText}>{t('gpsCaptured', language)}</Text>
-                  <Text style={styles.gpsCoords}>
-                    {record.latitude?.toFixed(6)}, {record.longitude?.toFixed(6)}
-                  </Text>
-                  <Text style={styles.gpsAccuracy}>
-                    Accuracy: {record.gpsAccuracy?.toFixed(0)}m
-                  </Text>
-                </View>
-                <View style={styles.autoAdvanceHint}>
-                  <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
-                </View>
-              </View>
-            ) : (
-              <View style={styles.gpsCapturing}>
-                <Ionicons name="radio" size={28} color={Colors.primary} />
-                <Text style={styles.gpsBtnText}>{t('gpsCapturing', language)}</Text>
-              </View>
-            )}
-          </View>
-        );
-      case 3:
-        return (
-          <StepInput
-            label={t('district', language)}
-            value={record.district}
-            onChangeText={(v) => update('district', v)}
-            placeholder="e.g. Ranchi"
-            autoFocus={true}
-            onSubmit={handleStepSubmit}
-          />
-        );
-      case 4:
-        return (
-          <StepInput
-            label={t('block', language)}
-            value={record.block}
-            onChangeText={(v) => update('block', v)}
-            placeholder="e.g. Kanke"
-            autoFocus={true}
-            onSubmit={handleStepSubmit}
-          />
-        );
-      case 5:
-        return (
-          <StepInput
-            label={t('village', language)}
-            value={record.village}
-            onChangeText={(v) => update('village', v)}
-            placeholder="e.g. Dhurwa"
-            autoFocus={true}
-            onSubmit={handleStepSubmit}
-          />
-        );
-      case 6:
-        return (
-          <View>
-            <StepInput
-              label={t('fieldArea', language)}
-              value={record.fieldAreaAcres}
-              onChangeText={handleAcresChange}
-              keyboardType="decimal-pad"
-              placeholder="e.g. 2.5"
-              autoFocus={true}
-              onSubmit={handleStepSubmit}
-              returnKeyType="done"
-            />
-            {record.fieldAreaHectares ? (
-              <View style={styles.calcCard}>
-                <Text style={styles.calcLabel}>{t('hectares', language)}</Text>
-                <Text style={styles.calcValue}>{record.fieldAreaHectares} ha</Text>
-              </View>
-            ) : null}
-          </View>
-        );
-      case 7:
-        return (
-          <View style={styles.summaryWrap}>
-            <Text style={styles.summaryTitle}>{t('fieldInfo', language)}</Text>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>{t('fieldId', language)}</Text>
-              <Text style={styles.summaryValue}>{record.fieldId}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>{t('district', language)}</Text>
-              <Text style={styles.summaryValue}>{record.district}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>{t('block', language)}</Text>
-              <Text style={styles.summaryValue}>{record.block}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>{t('village', language)}</Text>
-              <Text style={styles.summaryValue}>{record.village}</Text>
-            </View>
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>{t('fieldArea', language)}</Text>
-              <Text style={styles.summaryValue}>{record.fieldAreaAcres} ac / {record.fieldAreaHectares} ha</Text>
-            </View>
-
-            <Pressable
-              style={({ pressed }) => [styles.startWalkBtn, pressed && { transform: [{ scale: 0.97 }] }]}
-              onPress={handleFinalStep}
-            >
-              <Ionicons name="walk" size={22} color={Colors.white} />
-              <Text style={styles.startWalkText}>{t('startFieldWalk', language)}</Text>
-            </Pressable>
-          </View>
-        );
-      default:
-        return null;
-    }
-  };
 
   const stepLabels = [
     t('fieldId', language),
@@ -310,15 +146,160 @@ export default function FieldEntryScreen() {
       </LinearGradient>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 40 }} keyboardShouldPersistTaps="handled">
-        <View style={styles.stepCard}>
+        <Animated.View
+          key={`step-${step}`}
+          entering={Platform.OS === 'web' ? FadeIn.duration(250) : SlideInRight.duration(300).springify().damping(20)}
+          style={styles.stepCard}
+        >
           <View style={styles.stepHeader}>
             <View style={styles.stepBadge}>
               <Text style={styles.stepBadgeText}>{step + 1}</Text>
             </View>
             <Text style={styles.stepTitle}>{stepLabels[step]}</Text>
           </View>
-          {renderStep()}
-        </View>
+
+          {step === 0 && (
+            <StepInput
+              label={t('fieldId', language)}
+              value={record.fieldId}
+              onChangeText={(v) => update('fieldId', v)}
+              placeholder="e.g. F001"
+              autoFocus={true}
+              autoAdvanceDelay={1200}
+              onSubmit={() => record.fieldId.length > 0 && goToStep(1)}
+            />
+          )}
+
+          {step === 1 && (
+            <View>
+              <StepInput
+                label={t('collectionDate', language)}
+                value={record.collectionDate}
+                onChangeText={(v) => update('collectionDate', v)}
+                placeholder="YYYY-MM-DD"
+                autoAdvanceLength={10}
+                onSubmit={() => goToStep(2)}
+              />
+              <Animated.View entering={FadeIn.delay(200).duration(300)} style={styles.autoAdvanceHint}>
+                <Ionicons name="time-outline" size={14} color={Colors.textLight} />
+                <Text style={styles.autoAdvanceText}>Auto-advancing...</Text>
+              </Animated.View>
+            </View>
+          )}
+
+          {step === 2 && (
+            <View>
+              <Text style={styles.stepLabel}>{t('gpsLocation', language)}</Text>
+              {gpsStatus === 'done' ? (
+                <Animated.View entering={FadeIn.duration(400)} style={styles.gpsCard}>
+                  <Ionicons name="location" size={24} color={Colors.success} />
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={styles.gpsText}>{t('gpsCaptured', language)}</Text>
+                    <Text style={styles.gpsCoords}>
+                      {record.latitude?.toFixed(6)}, {record.longitude?.toFixed(6)}
+                    </Text>
+                    <Text style={styles.gpsAccuracy}>
+                      Accuracy: {record.gpsAccuracy?.toFixed(0)}m
+                    </Text>
+                  </View>
+                  <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
+                </Animated.View>
+              ) : (
+                <Animated.View entering={FadeIn.duration(300)} style={styles.gpsCapturing}>
+                  <Ionicons name="radio" size={28} color={Colors.primary} />
+                  <Text style={styles.gpsBtnText}>{t('gpsCapturing', language)}</Text>
+                  <View style={styles.gpsPulse}>
+                    <Text style={styles.gpsPulseText}>...</Text>
+                  </View>
+                </Animated.View>
+              )}
+            </View>
+          )}
+
+          {step === 3 && (
+            <StepInput
+              label={t('district', language)}
+              value={record.district}
+              onChangeText={(v) => update('district', v)}
+              placeholder="e.g. Ranchi"
+              autoFocus={true}
+              autoAdvanceDelay={1200}
+              onSubmit={() => record.district.length > 0 && goToStep(4)}
+            />
+          )}
+
+          {step === 4 && (
+            <StepInput
+              label={t('block', language)}
+              value={record.block}
+              onChangeText={(v) => update('block', v)}
+              placeholder="e.g. Kanke"
+              autoFocus={true}
+              autoAdvanceDelay={1200}
+              onSubmit={() => record.block.length > 0 && goToStep(5)}
+            />
+          )}
+
+          {step === 5 && (
+            <StepInput
+              label={t('village', language)}
+              value={record.village}
+              onChangeText={(v) => update('village', v)}
+              placeholder="e.g. Dhurwa"
+              autoFocus={true}
+              autoAdvanceDelay={1200}
+              onSubmit={() => record.village.length > 0 && goToStep(6)}
+            />
+          )}
+
+          {step === 6 && (
+            <View>
+              <StepInput
+                label={t('fieldArea', language)}
+                value={record.fieldAreaAcres}
+                onChangeText={handleAcresChange}
+                keyboardType="decimal-pad"
+                placeholder="e.g. 2.5"
+                autoFocus={true}
+                autoAdvanceDelay={1500}
+                onSubmit={() => record.fieldAreaAcres.length > 0 && goToStep(7)}
+                returnKeyType="done"
+              />
+              {record.fieldAreaHectares ? (
+                <Animated.View entering={FadeIn.duration(300)} style={styles.calcCard}>
+                  <Text style={styles.calcLabel}>{t('hectares', language)}</Text>
+                  <Text style={styles.calcValue}>{record.fieldAreaHectares} ha</Text>
+                </Animated.View>
+              ) : null}
+            </View>
+          )}
+
+          {step === 7 && (
+            <View style={styles.summaryWrap}>
+              <Text style={styles.summaryTitle}>{t('fieldInfo', language)}</Text>
+              {[
+                { label: t('fieldId', language), val: record.fieldId },
+                { label: t('district', language), val: record.district },
+                { label: t('block', language), val: record.block },
+                { label: t('village', language), val: record.village },
+                { label: t('fieldArea', language), val: `${record.fieldAreaAcres} ac / ${record.fieldAreaHectares} ha` },
+              ].map((item, i) => (
+                <Animated.View key={item.label} entering={FadeIn.delay(i * 80).duration(300)} style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>{item.label}</Text>
+                  <Text style={styles.summaryValue}>{item.val}</Text>
+                </Animated.View>
+              ))}
+
+              <Pressable
+                style={({ pressed }) => [styles.startWalkBtn, pressed && { transform: [{ scale: 0.97 }] }]}
+                onPress={handleFinalStep}
+              >
+                <Ionicons name="walk" size={22} color={Colors.white} />
+                <Text style={styles.startWalkText}>{t('startFieldWalk', language)}</Text>
+              </Pressable>
+            </View>
+          )}
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -434,6 +415,19 @@ const styles = StyleSheet.create({
   gpsBtnText: {
     fontSize: 16,
     fontFamily: 'Nunito_600SemiBold',
+    color: Colors.primary,
+  },
+  gpsPulse: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.primary + '20',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  gpsPulseText: {
+    fontSize: 14,
+    fontFamily: 'Nunito_700Bold',
     color: Colors.primary,
   },
   calcCard: {

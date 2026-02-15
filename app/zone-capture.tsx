@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert, Keyboard } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Animated, { FadeIn, SlideInRight } from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
@@ -28,23 +29,17 @@ export default function ZoneCaptureScreen() {
   const [record, setRecord] = useState<FieldRecord | null>(null);
   const [activeZone, setActiveZone] = useState<'A' | 'B' | 'C'>('A');
   const [zoneStep, setZoneStep] = useState(0);
-  const zoneStepRef = useRef(0);
   const activeZoneRef = useRef<'A' | 'B' | 'C'>('A');
+  const recordRef = useRef<FieldRecord | null>(null);
+  const photoAdvancedRef = useRef<Record<string, boolean>>({});
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
 
-  useEffect(() => {
-    zoneStepRef.current = zoneStep;
-  }, [zoneStep]);
+  useEffect(() => { activeZoneRef.current = activeZone; }, [activeZone]);
+  useEffect(() => { recordRef.current = record; }, [record]);
 
-  useEffect(() => {
-    activeZoneRef.current = activeZone;
-  }, [activeZone]);
-
-  useEffect(() => {
-    loadRecord();
-  }, []);
+  useEffect(() => { loadRecord(); }, []);
 
   const loadRecord = async () => {
     if (recordId) {
@@ -53,11 +48,9 @@ export default function ZoneCaptureScreen() {
     }
   };
 
-  const getZone = (): ZoneData => {
-    return record!.zones.find(z => z.zoneId === activeZone)!;
-  };
+  const getZone = (): ZoneData => record!.zones.find(z => z.zoneId === activeZone)!;
 
-  const updateZone = (updates: Partial<ZoneData>, autoAdvance = false) => {
+  const updateZone = (updates: Partial<ZoneData>) => {
     if (!record) return;
     const newZones = record.zones.map(z =>
       z.zoneId === activeZoneRef.current ? { ...z, ...updates } : z
@@ -65,37 +58,39 @@ export default function ZoneCaptureScreen() {
     const updated = { ...record, zones: newZones };
     setRecord(updated);
     saveRecord(updated);
-
-    if (autoAdvance) {
-      const zone = newZones.find(z => z.zoneId === activeZoneRef.current)!;
-      const allDataFilled = zone.plantHeight && zone.plantColor && zone.standDensity && zone.cobSizeObserved && zone.plantsSampled;
-      if (allDataFilled) {
-        setTimeout(() => {
-          completeCurrentZone(updated);
-        }, 400);
-      }
-    }
+    return updated;
   };
 
-  const completeCurrentZone = (rec: FieldRecord) => {
-    const newZones = rec.zones.map(z =>
+  const checkDataComplete = (rec: FieldRecord) => {
+    const zone = rec.zones.find(z => z.zoneId === activeZoneRef.current)!;
+    return !!(zone.plantHeight && zone.plantColor && zone.standDensity && zone.cobSizeObserved && zone.plantsSampled);
+  };
+
+  const completeCurrentZone = () => {
+    if (!recordRef.current) return;
+    const newZones = recordRef.current.zones.map(z =>
       z.zoneId === activeZoneRef.current ? { ...z, completed: true } : z
     );
-    const updated = { ...rec, zones: newZones };
+    const updated = { ...recordRef.current, zones: newZones };
     setRecord(updated);
     saveRecord(updated);
+    recordRef.current = updated;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    if (activeZoneRef.current === 'A') {
-      setActiveZone('B');
-      setZoneStep(0);
-    } else if (activeZoneRef.current === 'B') {
-      setActiveZone('C');
-      setZoneStep(0);
-    } else {
-      router.push({ pathname: '/agronomic', params: { recordId: updated.id } });
-    }
+    setTimeout(() => {
+      if (activeZoneRef.current === 'A') {
+        setActiveZone('B');
+        setZoneStep(0);
+        photoAdvancedRef.current = {};
+      } else if (activeZoneRef.current === 'B') {
+        setActiveZone('C');
+        setZoneStep(0);
+        photoAdvancedRef.current = {};
+      } else {
+        router.push({ pathname: '/agronomic', params: { recordId: updated.id } });
+      }
+    }, 500);
   };
 
   const takeZonePhoto = async (type: 'crop' | 'cob') => {
@@ -112,12 +107,32 @@ export default function ZoneCaptureScreen() {
           updateZone({ cobPhotoUri: result.assets[0].uri });
         }
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        setTimeout(() => {
-          setZoneStep(prev => prev + 1);
-        }, 500);
       }
     } catch {
       Alert.alert('Error', 'Could not open camera');
+    }
+  };
+
+  useEffect(() => {
+    if (!record) return;
+    const zone = record.zones.find(z => z.zoneId === activeZone)!;
+    const key = `${activeZone}-${zoneStep}`;
+    if (zoneStep === 0 && zone.cropPhotoUri && !photoAdvancedRef.current[key]) {
+      photoAdvancedRef.current[key] = true;
+      const timer = setTimeout(() => setZoneStep(1), 600);
+      return () => clearTimeout(timer);
+    }
+    if (zoneStep === 1 && zone.cobPhotoUri && !photoAdvancedRef.current[key]) {
+      photoAdvancedRef.current[key] = true;
+      const timer = setTimeout(() => setZoneStep(2), 600);
+      return () => clearTimeout(timer);
+    }
+  }, [record, zoneStep, activeZone]);
+
+  const handlePickerSelect = (field: keyof ZoneData, value: string) => {
+    const updated = updateZone({ [field]: value });
+    if (updated && checkDataComplete(updated)) {
+      setTimeout(() => completeCurrentZone(), 400);
     }
   };
 
@@ -194,110 +209,119 @@ export default function ZoneCaptureScreen() {
           <ProgressBar current={zoneStep + 1} total={3} />
         </View>
 
-        {zoneStep === 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>{t('standingCropPhoto', language)}</Text>
-            {zone.cropPhotoUri ? (
-              <View style={styles.photoWrap}>
-                <Image source={{ uri: zone.cropPhotoUri }} style={styles.photo} contentFit="cover" />
-                <View style={styles.autoTag}>
-                  <Ionicons name="checkmark-circle" size={14} color={Colors.white} />
-                  <Text style={styles.autoTagText}>Auto-advancing...</Text>
-                </View>
-              </View>
-            ) : (
-              <Pressable
-                style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
-                onPress={() => takeZonePhoto('crop')}
-              >
-                <Ionicons name="camera" size={32} color={Colors.primary} />
-                <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
-              </Pressable>
-            )}
-          </View>
-        )}
+        <Animated.View
+          key={`zone-${activeZone}-${zoneStep}`}
+          entering={Platform.OS === 'web' ? FadeIn.duration(250) : SlideInRight.duration(300).springify().damping(20)}
+        >
+          {zoneStep === 0 && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{t('standingCropPhoto', language)}</Text>
+              {zone.cropPhotoUri ? (
+                <Animated.View entering={FadeIn.duration(400)} style={styles.photoWrap}>
+                  <Image source={{ uri: zone.cropPhotoUri }} style={styles.photo} contentFit="cover" />
+                  <View style={styles.autoTag}>
+                    <Ionicons name="checkmark-circle" size={14} color={Colors.white} />
+                    <Text style={styles.autoTagText}>Moving on...</Text>
+                  </View>
+                </Animated.View>
+              ) : (
+                <Pressable
+                  style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
+                  onPress={() => takeZonePhoto('crop')}
+                >
+                  <Ionicons name="camera" size={32} color={Colors.primary} />
+                  <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
 
-        {zoneStep === 1 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>{t('cobCloseup', language)}</Text>
-            {zone.cobPhotoUri ? (
-              <View style={styles.photoWrap}>
-                <Image source={{ uri: zone.cobPhotoUri }} style={styles.photo} contentFit="cover" />
-                <View style={styles.autoTag}>
-                  <Ionicons name="checkmark-circle" size={14} color={Colors.white} />
-                  <Text style={styles.autoTagText}>Auto-advancing...</Text>
-                </View>
-              </View>
-            ) : (
-              <Pressable
-                style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
-                onPress={() => takeZonePhoto('cob')}
-              >
-                <Ionicons name="camera" size={32} color={Colors.primary} />
-                <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
-              </Pressable>
-            )}
-          </View>
-        )}
+          {zoneStep === 1 && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{t('cobCloseup', language)}</Text>
+              {zone.cobPhotoUri ? (
+                <Animated.View entering={FadeIn.duration(400)} style={styles.photoWrap}>
+                  <Image source={{ uri: zone.cobPhotoUri }} style={styles.photo} contentFit="cover" />
+                  <View style={styles.autoTag}>
+                    <Ionicons name="checkmark-circle" size={14} color={Colors.white} />
+                    <Text style={styles.autoTagText}>Moving on...</Text>
+                  </View>
+                </Animated.View>
+              ) : (
+                <Pressable
+                  style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
+                  onPress={() => takeZonePhoto('cob')}
+                >
+                  <Ionicons name="camera" size={32} color={Colors.primary} />
+                  <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
+                </Pressable>
+              )}
+            </View>
+          )}
 
-        {zoneStep === 2 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>{t('zoneData', language)}</Text>
-            <StepInput
-              label={t('plantHeight', language)}
-              value={zone.plantHeight || ''}
-              onChangeText={(v) => updateZone({ plantHeight: v })}
-              placeholder="e.g. 180 cm"
-              autoFocus={true}
-              onSubmit={() => {}}
-            />
-            <StepPicker
-              label={t('plantColor', language)}
-              value={zone.plantColor || ''}
-              options={[
-                { label: 'Green', value: 'green' },
-                { label: 'Yellow-Green', value: 'yellow-green' },
-                { label: 'Yellow', value: 'yellow' },
-                { label: 'Brown', value: 'brown' },
-              ]}
-              onSelect={(v) => updateZone({ plantColor: v })}
-            />
-            <StepPicker
-              label={t('standDensity', language)}
-              value={zone.standDensity || ''}
-              options={[
-                { label: t('low', language), value: 'low' },
-                { label: t('medium', language), value: 'medium' },
-                { label: t('high', language), value: 'high' },
-              ]}
-              onSelect={(v) => updateZone({ standDensity: v })}
-            />
-            <StepPicker
-              label={t('cobSizeObserved', language)}
-              value={zone.cobSizeObserved || ''}
-              options={[
-                { label: t('small', language), value: 'small' },
-                { label: t('medium', language), value: 'medium' },
-                { label: t('large', language), value: 'large' },
-              ]}
-              onSelect={(v) => updateZone({ cobSizeObserved: v })}
-            />
-            <StepInput
-              label={t('plantsSampled', language)}
-              value={zone.plantsSampled || ''}
-              onChangeText={(v) => updateZone({ plantsSampled: v })}
-              keyboardType="numeric"
-              placeholder="e.g. 10"
-              returnKeyType="done"
-              onSubmit={() => {
-                const z = record.zones.find(zn => zn.zoneId === activeZoneRef.current)!;
-                if (z.plantHeight && z.plantColor && z.standDensity && z.cobSizeObserved) {
-                  completeCurrentZone(record);
-                }
-              }}
-            />
-          </View>
-        )}
+          {zoneStep === 2 && (
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>{t('zoneData', language)}</Text>
+              <StepInput
+                label={t('plantHeight', language)}
+                value={zone.plantHeight || ''}
+                onChangeText={(v) => updateZone({ plantHeight: v })}
+                placeholder="e.g. 180 cm"
+                keyboardType="decimal-pad"
+                autoFocus={true}
+                autoAdvanceDelay={1200}
+                onSubmit={() => {}}
+              />
+              <StepPicker
+                label={t('plantColor', language)}
+                value={zone.plantColor || ''}
+                options={[
+                  { label: 'Green', value: 'green' },
+                  { label: 'Yellow-Green', value: 'yellow-green' },
+                  { label: 'Yellow', value: 'yellow' },
+                  { label: 'Brown', value: 'brown' },
+                ]}
+                onSelect={(v) => handlePickerSelect('plantColor', v)}
+              />
+              <StepPicker
+                label={t('standDensity', language)}
+                value={zone.standDensity || ''}
+                options={[
+                  { label: t('low', language), value: 'low' },
+                  { label: t('medium', language), value: 'medium' },
+                  { label: t('high', language), value: 'high' },
+                ]}
+                onSelect={(v) => handlePickerSelect('standDensity', v)}
+              />
+              <StepPicker
+                label={t('cobSizeObserved', language)}
+                value={zone.cobSizeObserved || ''}
+                options={[
+                  { label: t('small', language), value: 'small' },
+                  { label: t('medium', language), value: 'medium' },
+                  { label: t('large', language), value: 'large' },
+                ]}
+                onSelect={(v) => handlePickerSelect('cobSizeObserved', v)}
+              />
+              <StepInput
+                label={t('plantsSampled', language)}
+                value={zone.plantsSampled || ''}
+                onChangeText={(v) => {
+                  const updated = updateZone({ plantsSampled: v });
+                }}
+                keyboardType="numeric"
+                placeholder="e.g. 10"
+                returnKeyType="done"
+                autoAdvanceDelay={1200}
+                onSubmit={() => {
+                  if (recordRef.current && checkDataComplete(recordRef.current)) {
+                    completeCurrentZone();
+                  }
+                }}
+              />
+            </View>
+          )}
+        </Animated.View>
       </ScrollView>
     </View>
   );
