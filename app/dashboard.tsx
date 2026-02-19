@@ -1,30 +1,38 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import React, { useState, useEffect, useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable, Platform, Alert, ScrollView } from 'react-native';
 import { router } from 'expo-router';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
+import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp } from '@/lib/AppContext';
-import { t } from '@/lib/i18n';
+import { t, getTips } from '@/lib/i18n';
 import { getAllRecords } from '@/lib/storage';
+import { FieldRecord } from '@/lib/types';
+import { TTSButton } from '@/components/TTSButton';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const { language, selfieUri } = useApp();
   const [recordCount, setRecordCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
-
-  useEffect(() => {
-    loadCounts();
-  }, []);
+  const [recentRecords, setRecentRecords] = useState<FieldRecord[]>([]);
 
   const loadCounts = async () => {
     const records = await getAllRecords();
     setRecordCount(records.length);
     setPendingCount(records.filter(r => r.syncStatus === 'pending').length);
+    setRecentRecords(records.sort((a, b) => b.updatedAt - a.updatedAt).slice(0, 3));
   };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadCounts();
+    }, [])
+  );
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
@@ -48,16 +56,28 @@ export default function DashboardScreen() {
         </View>
 
         {pendingCount > 0 && (
-          <View style={styles.syncBadge}>
+          <Pressable
+            style={styles.syncBadge}
+            onPress={async () => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              import('@/lib/storage').then(m => m.syncRecords());
+              Alert.alert(t('syncData', language), `${pendingCount} records are being synced.`);
+              loadCounts();
+            }}
+          >
             <Ionicons name="cloud-upload-outline" size={16} color={Colors.accent} />
             <Text style={styles.syncBadgeText}>
               {pendingCount} {t('pending', language)}
             </Text>
-          </View>
+          </Pressable>
         )}
       </LinearGradient>
 
-      <View style={[styles.body, { paddingBottom: bottomPad + 20 }]}>
+      <ScrollView
+        style={styles.body}
+        contentContainerStyle={{ paddingBottom: bottomPad + 40 }}
+        showsVerticalScrollIndicator={false}
+      >
         <Pressable
           style={({ pressed }) => [styles.mainCard, pressed && { transform: [{ scale: 0.97 }] }]}
           onPress={() => router.push('/field-entry')}
@@ -90,8 +110,15 @@ export default function DashboardScreen() {
 
           <Pressable
             style={({ pressed }) => [styles.gridCard, pressed && { transform: [{ scale: 0.96 }] }]}
-            onPress={() => {
-              Alert.alert(t('dataSafe', language));
+            onPress={async () => {
+              if (pendingCount > 0) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                import('@/lib/storage').then(m => m.syncRecords());
+                Alert.alert(t('syncData', language), `${pendingCount} records are being synced.`);
+                loadCounts();
+              } else {
+                Alert.alert(t('synced', language), "All records are up to date.");
+              }
             }}
           >
             <View style={[styles.gridIcon, { backgroundColor: '#FFF8E1' }]}>
@@ -102,6 +129,47 @@ export default function DashboardScreen() {
           </Pressable>
         </View>
 
+        {/* Tip of the Day */}
+        <View style={styles.tipCard}>
+          {(() => {
+            const tipText = useMemo(() => {
+              const tips = getTips(language);
+              return tips[Math.floor(Math.random() * tips.length)];
+            }, [language]);
+            return (
+              <>
+                <View style={styles.tipHeader}>
+                  <Ionicons name="bulb" size={20} color={Colors.accentDark} />
+                  <Text style={styles.tipTitle}>Tip of the Day</Text>
+                  <TTSButton text={tipText} language={language} size={18} color={Colors.accentDark} />
+                </View>
+                <Text style={styles.tipText}>{tipText}</Text>
+              </>
+            );
+          })()}
+        </View>
+
+        {/* Recent Records */}
+        {recentRecords.length > 0 && (
+          <View style={styles.recentSection}>
+            <Text style={styles.sectionLabel}>Recent Activity</Text>
+            {recentRecords.map((r) => (
+              <Pressable
+                key={r.id}
+                style={styles.recentRow}
+                onPress={() => router.push({ pathname: '/review', params: { recordId: r.id } })}
+              >
+                <View style={[styles.statusDot, { backgroundColor: r.syncStatus === 'synced' ? Colors.success : Colors.accent }]} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.recentField}>{r.fieldId || 'Unnamed Field'}</Text>
+                  <Text style={styles.recentDate}>{new Date(r.updatedAt).toLocaleDateString()}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.textLight} />
+              </Pressable>
+            ))}
+          </View>
+        )}
+
         <Pressable
           style={({ pressed }) => [styles.settingsCard, pressed && { transform: [{ scale: 0.97 }] }]}
           onPress={() => router.push('/settings')}
@@ -110,12 +178,10 @@ export default function DashboardScreen() {
           <Text style={styles.settingsText}>{t('settings', language)}</Text>
           <Ionicons name="chevron-forward" size={20} color={Colors.textLight} />
         </Pressable>
-      </View>
+      </ScrollView>
     </View>
   );
 }
-
-import { Alert } from 'react-native';
 
 const styles = StyleSheet.create({
   container: {
@@ -251,6 +317,74 @@ const styles = StyleSheet.create({
     fontFamily: 'Nunito_400Regular',
     color: Colors.textSecondary,
     marginTop: 4,
+  },
+  tipCard: {
+    backgroundColor: '#FFF3E0',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.accentDark,
+  },
+  tipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 6,
+  },
+  tipTitle: {
+    fontSize: 14,
+    fontFamily: 'Nunito_700Bold',
+    color: Colors.accentDark,
+    textTransform: 'uppercase',
+    flex: 1,
+  },
+  tipText: {
+    fontSize: 14,
+    fontFamily: 'Nunito_400Regular',
+    color: Colors.text,
+    lineHeight: 20,
+  },
+  recentSection: {
+    marginBottom: 20,
+  },
+  sectionLabel: {
+    fontSize: 14,
+    fontFamily: 'Nunito_700Bold',
+    color: Colors.textSecondary,
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
+  recentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+    gap: 12,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  recentField: {
+    fontSize: 15,
+    fontFamily: 'Nunito_600SemiBold',
+    color: Colors.text,
+  },
+  recentDate: {
+    fontSize: 12,
+    fontFamily: 'Nunito_400Regular',
+    color: Colors.textLight,
   },
   settingsCard: {
     flexDirection: 'row',

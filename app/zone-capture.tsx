@@ -15,6 +15,10 @@ import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord, ZoneData } from '@/lib/types';
 import { StepInput, StepPicker } from '@/components/StepInput';
 import { ProgressBar } from '@/components/ProgressBar';
+import { PhotoGuidanceModal } from '@/components/PhotoGuidanceModal';
+import { VoiceEntryOverlay } from '@/components/VoiceEntryOverlay';
+import { GuidanceImages } from '@/constants/assets';
+import { TTSButton } from '@/components/TTSButton';
 
 const ZONE_COLORS = {
   A: Colors.zoneGood,
@@ -29,9 +33,12 @@ export default function ZoneCaptureScreen() {
   const [record, setRecord] = useState<FieldRecord | null>(null);
   const [activeZone, setActiveZone] = useState<'A' | 'B' | 'C'>('A');
   const [zoneStep, setZoneStep] = useState(0);
+  const [guidanceVisible, setGuidanceVisible] = useState(false);
+  const [currentPhotoType, setCurrentPhotoType] = useState<'crop' | 'cob'>('crop');
   const activeZoneRef = useRef<'A' | 'B' | 'C'>('A');
   const recordRef = useRef<FieldRecord | null>(null);
   const photoAdvancedRef = useRef<Record<string, boolean>>({});
+  const [voiceVisible, setVoiceVisible] = useState(false);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
@@ -50,14 +57,14 @@ export default function ZoneCaptureScreen() {
 
   const getZone = (): ZoneData => record!.zones.find(z => z.zoneId === activeZone)!;
 
-  const updateZone = (updates: Partial<ZoneData>) => {
+  const updateZone = async (updates: Partial<ZoneData>) => {
     if (!record) return;
     const newZones = record.zones.map(z =>
       z.zoneId === activeZoneRef.current ? { ...z, ...updates } : z
     );
     const updated = { ...record, zones: newZones };
     setRecord(updated);
-    saveRecord(updated);
+    await saveRecord(updated);
     return updated;
   };
 
@@ -66,14 +73,14 @@ export default function ZoneCaptureScreen() {
     return !!(zone.plantHeight && zone.plantColor && zone.standDensity && zone.cobSizeObserved && zone.plantsSampled);
   };
 
-  const completeCurrentZone = () => {
+  const completeCurrentZone = async () => {
     if (!recordRef.current) return;
     const newZones = recordRef.current.zones.map(z =>
       z.zoneId === activeZoneRef.current ? { ...z, completed: true } : z
     );
     const updated = { ...recordRef.current, zones: newZones };
     setRecord(updated);
-    saveRecord(updated);
+    await saveRecord(updated);
     recordRef.current = updated;
 
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -93,7 +100,14 @@ export default function ZoneCaptureScreen() {
     }, 500);
   };
 
-  const takeZonePhoto = async (type: 'crop' | 'cob') => {
+  const handleCapturePress = (type: 'crop' | 'cob') => {
+    setCurrentPhotoType(type);
+    setGuidanceVisible(true);
+  };
+
+  const takeZonePhoto = async () => {
+    setGuidanceVisible(false);
+    const type = currentPhotoType;
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
@@ -102,9 +116,9 @@ export default function ZoneCaptureScreen() {
 
       if (!result.canceled && result.assets[0]) {
         if (type === 'crop') {
-          updateZone({ cropPhotoUri: result.assets[0].uri });
+          await updateZone({ cropPhotoUri: result.assets[0].uri });
         } else {
-          updateZone({ cobPhotoUri: result.assets[0].uri });
+          await updateZone({ cobPhotoUri: result.assets[0].uri });
         }
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
@@ -129,8 +143,8 @@ export default function ZoneCaptureScreen() {
     }
   }, [record, zoneStep, activeZone]);
 
-  const handlePickerSelect = (field: keyof ZoneData, value: string) => {
-    const updated = updateZone({ [field]: value });
+  const handlePickerSelect = async (field: keyof ZoneData, value: string) => {
+    const updated = await updateZone({ [field]: value });
     if (updated && checkDataComplete(updated)) {
       setTimeout(() => completeCurrentZone(), 400);
     }
@@ -178,7 +192,7 @@ export default function ZoneCaptureScreen() {
                   zd.completed && !isActive && { borderColor: ZONE_COLORS[z] },
                 ]}
                 onPress={() => {
-                  if (z === 'A' || record.zones.find(zn => zn.zoneId === (['', 'A', 'B'][['A','B','C'].indexOf(z)] as any))?.completed) {
+                  if (z === 'A' || record.zones.find(zn => zn.zoneId === (['', 'A', 'B'][['A', 'B', 'C'].indexOf(z)] as any))?.completed) {
                     setActiveZone(z);
                     setZoneStep(0);
                   }
@@ -215,10 +229,13 @@ export default function ZoneCaptureScreen() {
         >
           {zoneStep === 0 && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>{t('standingCropPhoto', language)}</Text>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>{t('standingCropPhoto', language)}</Text>
+                <TTSButton text={t('standingCropPhoto', language)} language={language} />
+              </View>
               {zone.cropPhotoUri ? (
                 <Animated.View entering={FadeIn.duration(400)} style={styles.photoWrap}>
-                  <Image source={{ uri: zone.cropPhotoUri }} style={styles.photo} contentFit="cover" />
+                  <Image source={{ uri: zone.cropPhotoUri }} style={styles.photo} contentFit="contain" />
                   <View style={styles.autoTag}>
                     <Ionicons name="checkmark-circle" size={14} color={Colors.white} />
                     <Text style={styles.autoTagText}>Moving on...</Text>
@@ -227,7 +244,7 @@ export default function ZoneCaptureScreen() {
               ) : (
                 <Pressable
                   style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
-                  onPress={() => takeZonePhoto('crop')}
+                  onPress={() => handleCapturePress('crop')}
                 >
                   <Ionicons name="camera" size={32} color={Colors.primary} />
                   <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
@@ -238,10 +255,13 @@ export default function ZoneCaptureScreen() {
 
           {zoneStep === 1 && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>{t('cobCloseup', language)}</Text>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>{t('cobCloseup', language)}</Text>
+                <TTSButton text={t('cobCloseup', language)} language={language} />
+              </View>
               {zone.cobPhotoUri ? (
                 <Animated.View entering={FadeIn.duration(400)} style={styles.photoWrap}>
-                  <Image source={{ uri: zone.cobPhotoUri }} style={styles.photo} contentFit="cover" />
+                  <Image source={{ uri: zone.cobPhotoUri }} style={styles.photo} contentFit="contain" />
                   <View style={styles.autoTag}>
                     <Ionicons name="checkmark-circle" size={14} color={Colors.white} />
                     <Text style={styles.autoTagText}>Moving on...</Text>
@@ -250,7 +270,7 @@ export default function ZoneCaptureScreen() {
               ) : (
                 <Pressable
                   style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
-                  onPress={() => takeZonePhoto('cob')}
+                  onPress={() => handleCapturePress('cob')}
                 >
                   <Ionicons name="camera" size={32} color={Colors.primary} />
                   <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
@@ -261,7 +281,10 @@ export default function ZoneCaptureScreen() {
 
           {zoneStep === 2 && (
             <View style={styles.card}>
-              <Text style={styles.cardTitle}>{t('zoneData', language)}</Text>
+              <View style={styles.cardHeader}>
+                <Text style={styles.cardTitle}>{t('zoneData', language)}</Text>
+                <TTSButton text={t('zoneData', language)} language={language} />
+              </View>
               <StepInput
                 label={t('plantHeight', language)}
                 value={zone.plantHeight || ''}
@@ -270,7 +293,7 @@ export default function ZoneCaptureScreen() {
                 keyboardType="decimal-pad"
                 autoFocus={true}
                 autoAdvanceDelay={1200}
-                onSubmit={() => {}}
+                onSubmit={() => { }}
               />
               <StepPicker
                 label={t('plantColor', language)}
@@ -323,6 +346,47 @@ export default function ZoneCaptureScreen() {
           )}
         </Animated.View>
       </ScrollView>
+
+      <PhotoGuidanceModal
+        visible={guidanceVisible}
+        onClose={() => setGuidanceVisible(false)}
+        onCapture={takeZonePhoto}
+        language={language}
+        title={currentPhotoType === 'crop' ? t('standingCropPhoto', language) : t('cobCloseup', language)}
+        instruction={currentPhotoType === 'crop' ? t('fieldOverviewInstruction', language) : t('cobCloseup', language)}
+        type={currentPhotoType === 'crop' ? 'wide' : 'closeup'}
+        exampleImage={currentPhotoType === 'crop' ? GuidanceImages.fieldWide : GuidanceImages.cobCloseup}
+      />
+
+      <View style={[styles.fabContainer, { bottom: bottomPad + 20 }]}>
+        <Pressable
+          style={({ pressed }) => [styles.voiceFab, pressed && { transform: [{ scale: 0.95 }] }]}
+          onPress={() => setVoiceVisible(true)}
+        >
+          <Ionicons name="mic" size={28} color={Colors.white} />
+        </Pressable>
+      </View>
+
+      <VoiceEntryOverlay
+        visible={voiceVisible}
+        onClose={() => setVoiceVisible(false)}
+        language={language}
+        onApply={async (fields) => {
+          const { zoneUpdates, ...mainFields } = fields as any;
+          if (zoneUpdates) {
+            await updateZone(zoneUpdates);
+          }
+          if (Object.keys(mainFields).length > 0) {
+            setRecord(prev => prev ? { ...prev, ...mainFields } : null);
+            if (recordRef.current) {
+              const updated = { ...recordRef.current, ...mainFields };
+              recordRef.current = updated;
+              await saveRecord(updated);
+            }
+          }
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }}
+      />
     </View>
   );
 }
@@ -413,11 +477,17 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
   },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   cardTitle: {
     fontSize: 17,
     fontFamily: 'Nunito_700Bold',
     color: Colors.text,
-    marginBottom: 16,
+    flex: 1,
   },
   captureBtn: {
     backgroundColor: Colors.surfaceAlt,
@@ -443,6 +513,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     borderRadius: 12,
+    backgroundColor: Colors.surfaceAlt,
   },
   autoTag: {
     position: 'absolute',
@@ -460,5 +531,23 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: 'Nunito_400Regular',
     color: Colors.white,
+  },
+  fabContainer: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 10,
+  },
+  voiceFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
 });

@@ -22,14 +22,15 @@ export class ErrorBoundary extends Component<
   static defaultProps: {
     FallbackComponent: ComponentType<ErrorFallbackProps>;
   } = {
-    FallbackComponent: ErrorFallback,
-  };
+      FallbackComponent: ErrorFallback,
+    };
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { error };
   }
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {
+    console.error("ErrorBoundary caught an error:", error, info.componentStack);
     if (typeof this.props.onError === "function") {
       this.props.onError(error, info.componentStack);
     }

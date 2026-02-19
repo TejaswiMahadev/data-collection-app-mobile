@@ -163,10 +163,9 @@ export default function FieldEntryScreen() {
               label={t('fieldId', language)}
               value={record.fieldId}
               onChangeText={(v) => update('fieldId', v)}
-              placeholder="e.g. F001"
-              autoFocus={true}
-              autoAdvanceDelay={1200}
-              onSubmit={() => record.fieldId.length > 0 && goToStep(1)}
+              onSubmit={() => goToStep(1)}
+              autoFocus
+              type="text"
             />
           )}
 
@@ -176,9 +175,10 @@ export default function FieldEntryScreen() {
                 label={t('collectionDate', language)}
                 value={record.collectionDate}
                 onChangeText={(v) => update('collectionDate', v)}
-                placeholder="YYYY-MM-DD"
-                autoAdvanceLength={10}
                 onSubmit={() => goToStep(2)}
+                autoFocus
+                placeholder="YYYY/MM/DD"
+                type="date"
               />
               <Animated.View entering={FadeIn.delay(200).duration(300)} style={styles.autoAdvanceHint}>
                 <Ionicons name="time-outline" size={14} color={Colors.textLight} />
@@ -258,12 +258,9 @@ export default function FieldEntryScreen() {
                 label={t('fieldArea', language)}
                 value={record.fieldAreaAcres}
                 onChangeText={handleAcresChange}
-                keyboardType="decimal-pad"
-                placeholder="e.g. 2.5"
-                autoFocus={true}
-                autoAdvanceDelay={1500}
-                onSubmit={() => record.fieldAreaAcres.length > 0 && goToStep(7)}
-                returnKeyType="done"
+                onSubmit={() => goToStep(7)}
+                autoFocus
+                type="number"
               />
               {record.fieldAreaHectares ? (
                 <Animated.View entering={FadeIn.duration(300)} style={styles.calcCard}>

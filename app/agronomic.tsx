@@ -13,6 +13,8 @@ import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
 import { StepInput, StepPicker } from '@/components/StepInput';
 import { ProgressBar } from '@/components/ProgressBar';
+import { VoiceEntryOverlay } from '@/components/VoiceEntryOverlay';
+import { TTSButton } from '@/components/TTSButton';
 
 type SectionKey = 'crop' | 'yield' | 'fertilizer' | 'irrigation' | 'pest' | 'soil' | 'stress';
 
@@ -38,6 +40,7 @@ export default function AgronomicScreen() {
   const [record, setRecord] = useState<FieldRecord | null>(null);
   const [sectionIdx, setSectionIdx] = useState(0);
   const recordRef = useRef<FieldRecord | null>(null);
+  const [voiceVisible, setVoiceVisible] = useState(false);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
@@ -50,7 +53,7 @@ export default function AgronomicScreen() {
     }
   }, []);
 
-  const update = useCallback((key: keyof FieldRecord, value: any) => {
+  const update = useCallback(async (key: keyof FieldRecord, value: string) => {
     if (!recordRef.current) return;
     const updated = { ...recordRef.current, [key]: value };
 
@@ -115,34 +118,34 @@ export default function AgronomicScreen() {
       case 'crop':
         return (
           <>
-            <StepInput label={t('variety', language)} value={record.variety} onChangeText={(v) => update('variety', v)} placeholder="e.g. DHM 117" autoFocus={true} autoAdvanceDelay={1200} onSubmit={() => {}} />
-            <StepInput label={t('seedCompany', language)} value={record.seedCompany} onChangeText={(v) => update('seedCompany', v)} placeholder="e.g. Pioneer" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('variety', language)} value={record.variety} onChangeText={(v) => update('variety', v)} placeholder="e.g. DHM 117" autoFocus={true} autoAdvanceDelay={1200} onSubmit={() => { }} />
+            <StepInput label={t('seedCompany', language)} value={record.seedCompany} onChangeText={(v) => update('seedCompany', v)} placeholder="e.g. Pioneer" autoAdvanceDelay={1200} onSubmit={() => { }} />
             <StepPicker label={t('seedType', language)} value={record.seedType} options={[
               { label: 'Hybrid', value: 'hybrid' },
               { label: 'OPV', value: 'opv' },
               { label: 'Local', value: 'local' },
             ]} onSelect={(v) => { update('seedType', v); }} />
-            <StepInput label={t('harvestDate', language)} value={record.harvestDate} onChangeText={(v) => update('harvestDate', v)} placeholder="YYYY-MM-DD" autoAdvanceLength={10} returnKeyType="done" onSubmit={advanceSection} />
+            <StepInput label={t('harvestDate', language)} value={record.harvestDate} onChangeText={(v) => update('harvestDate', v)} placeholder="YYYY/MM/DD" autoAdvanceLength={10} returnKeyType="done" onSubmit={advanceSection} type="date" />
           </>
         );
       case 'yield':
         return (
           <>
-            <StepInput label={t('totalHarvestWeight', language)} value={record.totalHarvestWeight} onChangeText={(v) => update('totalHarvestWeight', v)} keyboardType="decimal-pad" placeholder="e.g. 500 kg" autoFocus={true} autoAdvanceDelay={1500} onSubmit={() => {}} />
+            <StepInput label={t('totalHarvestWeight', language)} value={record.totalHarvestWeight} onChangeText={(v) => update('totalHarvestWeight', v)} keyboardType="decimal-pad" placeholder="e.g. 500 kg" autoFocus={true} autoAdvanceDelay={1500} onSubmit={() => { }} />
             <StepInput label={t('moisturePercent', language)} value={record.moisturePercent} onChangeText={(v) => update('moisturePercent', v)} keyboardType="decimal-pad" placeholder="e.g. 14" autoAdvanceDelay={1500} returnKeyType="done" onSubmit={advanceSection} />
-            <StepInput label={t('dryWeight', language)} value={record.dryWeight} onChangeText={() => {}} editable={false} />
-            <StepInput label={t('yieldKgHa', language)} value={record.yieldKgHa} onChangeText={() => {}} editable={false} />
-            <StepInput label={t('yieldQuintalsAcre', language)} value={record.yieldQuintalsAcre} onChangeText={() => {}} editable={false} />
+            <StepInput label={t('dryWeight', language)} value={record.dryWeight} onChangeText={() => { }} editable={false} />
+            <StepInput label={t('yieldKgHa', language)} value={record.yieldKgHa} onChangeText={() => { }} editable={false} />
+            <StepInput label={t('yieldQuintalsAcre', language)} value={record.yieldQuintalsAcre} onChangeText={() => { }} editable={false} />
           </>
         );
       case 'fertilizer':
         return (
           <>
-            <StepInput label={t('sowingDate', language)} value={record.sowingDate} onChangeText={(v) => update('sowingDate', v)} placeholder="YYYY-MM-DD" autoFocus={true} autoAdvanceLength={10} onSubmit={() => {}} />
-            <StepInput label={t('growingDays', language)} value={record.growingDays} onChangeText={() => {}} editable={false} />
-            <StepInput label={t('basalFertilizer', language)} value={record.basalFertilizer} onChangeText={(v) => update('basalFertilizer', v)} placeholder="e.g. DAP 50kg" autoAdvanceDelay={1200} onSubmit={() => {}} />
-            <StepInput label={t('topDressing1', language)} value={record.topDressing1} onChangeText={(v) => update('topDressing1', v)} placeholder="e.g. Urea 30kg" autoAdvanceDelay={1200} onSubmit={() => {}} />
-            <StepInput label={t('topDressing2', language)} value={record.topDressing2} onChangeText={(v) => update('topDressing2', v)} placeholder="e.g. MOP 20kg" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('sowingDate', language)} value={record.sowingDate} onChangeText={(v) => update('sowingDate', v)} placeholder="YYYY/MM/DD" autoFocus={true} autoAdvanceLength={10} onSubmit={() => { }} type="date" />
+            <StepInput label={t('growingDays', language)} value={record.growingDays} onChangeText={() => { }} editable={false} />
+            <StepInput label={t('basalFertilizer', language)} value={record.basalFertilizer} onChangeText={(v) => update('basalFertilizer', v)} placeholder="e.g. DAP 50kg" autoAdvanceDelay={1200} onSubmit={() => { }} />
+            <StepInput label={t('topDressing1', language)} value={record.topDressing1} onChangeText={(v) => update('topDressing1', v)} placeholder="e.g. Urea 30kg" autoAdvanceDelay={1200} onSubmit={() => { }} />
+            <StepInput label={t('topDressing2', language)} value={record.topDressing2} onChangeText={(v) => update('topDressing2', v)} placeholder="e.g. MOP 20kg" autoAdvanceDelay={1200} onSubmit={() => { }} />
             <StepInput label={t('organicManure', language)} value={record.organicManure} onChangeText={(v) => update('organicManure', v)} placeholder="e.g. FYM 2 ton" autoAdvanceDelay={1200} returnKeyType="done" onSubmit={advanceSection} />
           </>
         );
@@ -154,14 +157,14 @@ export default function AgronomicScreen() {
               { label: t('irrigated', language), value: 'irrigated' },
               { label: t('partial', language), value: 'partial' },
             ]} onSelect={(v) => update('irrigationType', v)} />
-            <StepInput label={t('irrigationNumber', language)} value={record.irrigationNumber} onChangeText={(v) => update('irrigationNumber', v)} keyboardType="numeric" placeholder="e.g. 3" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('irrigationNumber', language)} value={record.irrigationNumber} onChangeText={(v) => update('irrigationNumber', v)} keyboardType="numeric" placeholder="e.g. 3" autoAdvanceDelay={1200} onSubmit={() => { }} />
             <StepInput label={t('waterSource', language)} value={record.waterSource} onChangeText={(v) => update('waterSource', v)} placeholder="e.g. Borewell" autoAdvanceDelay={1200} returnKeyType="done" onSubmit={advanceSection} />
           </>
         );
       case 'pest':
         return (
           <>
-            <StepInput label={t('majorPest', language)} value={record.majorPest} onChangeText={(v) => update('majorPest', v)} placeholder="e.g. Stem borer" autoFocus={true} autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('majorPest', language)} value={record.majorPest} onChangeText={(v) => update('majorPest', v)} placeholder="e.g. Stem borer" autoFocus={true} autoAdvanceDelay={1200} onSubmit={() => { }} />
             <StepPicker label={t('pestSeverity', language)} value={record.pestSeverity} options={[
               { label: t('none', language), value: 'none' },
               { label: t('low', language), value: 'low' },
@@ -169,7 +172,7 @@ export default function AgronomicScreen() {
               { label: t('high', language), value: 'high' },
               { label: t('severe', language), value: 'severe' },
             ]} onSelect={(v) => update('pestSeverity', v)} />
-            <StepInput label={t('disease', language)} value={record.disease} onChangeText={(v) => update('disease', v)} placeholder="e.g. Leaf blight" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('disease', language)} value={record.disease} onChangeText={(v) => update('disease', v)} placeholder="e.g. Leaf blight" autoAdvanceDelay={1200} onSubmit={() => { }} />
             <StepInput label={t('pesticideUsed', language)} value={record.pesticideUsed} onChangeText={(v) => update('pesticideUsed', v)} placeholder="e.g. Chlorpyrifos" autoAdvanceDelay={1200} returnKeyType="done" onSubmit={advanceSection} />
           </>
         );
@@ -182,9 +185,9 @@ export default function AgronomicScreen() {
               { label: t('clayey', language), value: 'clayey' },
               { label: t('laterite', language), value: 'laterite' },
             ]} onSelect={(v) => update('soilType', v)} />
-            <StepInput label={t('soilPh', language)} value={record.soilPh} onChangeText={(v) => update('soilPh', v)} keyboardType="decimal-pad" placeholder="e.g. 6.5" autoAdvanceDelay={1200} onSubmit={() => {}} />
-            <StepInput label={t('organicCarbon', language)} value={record.organicCarbon} onChangeText={(v) => update('organicCarbon', v)} placeholder="e.g. 0.5%" autoAdvanceDelay={1200} onSubmit={() => {}} />
-            <StepInput label={t('npk', language)} value={record.npk} onChangeText={(v) => update('npk', v)} placeholder="e.g. 120:60:40" autoAdvanceDelay={1200} onSubmit={() => {}} />
+            <StepInput label={t('soilPh', language)} value={record.soilPh} onChangeText={(v) => update('soilPh', v)} keyboardType="decimal-pad" placeholder="e.g. 6.5" autoAdvanceDelay={1200} onSubmit={() => { }} />
+            <StepInput label={t('organicCarbon', language)} value={record.organicCarbon} onChangeText={(v) => update('organicCarbon', v)} placeholder="e.g. 0.5%" autoAdvanceDelay={1200} onSubmit={() => { }} />
+            <StepInput label={t('npk', language)} value={record.npk} onChangeText={(v) => update('npk', v)} placeholder="e.g. 12:32:16" autoAdvanceDelay={1200} onSubmit={() => { }} type="npk" />
             <StepInput label={t('previousCrop', language)} value={record.previousCrop} onChangeText={(v) => update('previousCrop', v)} placeholder="e.g. Rice" autoAdvanceDelay={1200} returnKeyType="done" onSubmit={advanceSection} />
           </>
         );
@@ -263,10 +266,36 @@ export default function AgronomicScreen() {
           entering={Platform.OS === 'web' ? FadeIn.duration(250) : SlideInRight.duration(300).springify().damping(20)}
           style={styles.card}
         >
-          <Text style={styles.cardTitle}>{getSectionTitle(section, language)}</Text>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>{getSectionTitle(section, language)}</Text>
+            <TTSButton text={getSectionTitle(section, language)} language={language} />
+          </View>
           {renderSection()}
         </Animated.View>
       </ScrollView>
+
+      <View style={[styles.fabContainer, { bottom: bottomPad + 20 }]}>
+        <Pressable
+          style={({ pressed }) => [styles.voiceFab, pressed && { transform: [{ scale: 0.95 }] }]}
+          onPress={() => setVoiceVisible(true)}
+        >
+          <Ionicons name="mic" size={28} color={Colors.white} />
+        </Pressable>
+      </View>
+
+      <VoiceEntryOverlay
+        visible={voiceVisible}
+        onClose={() => setVoiceVisible(false)}
+        language={language}
+        onApply={(fields) => {
+          if (!recordRef.current) return;
+          const updated = { ...recordRef.current, ...fields };
+          setRecord(updated);
+          recordRef.current = updated;
+          saveRecord(updated);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }}
+      />
     </View>
   );
 }
@@ -315,10 +344,34 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
   },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
   cardTitle: {
     fontSize: 18,
     fontFamily: 'Nunito_700Bold',
     color: Colors.text,
-    marginBottom: 20,
+    flex: 1,
+  },
+  fabContainer: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 10,
+  },
+  voiceFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
 });

@@ -2,6 +2,10 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import Colors from '@/constants/colors';
+import { formatPhone, formatDate, formatNumeric, formatNPK } from '@/lib/formatters';
+
+import { TTSButton } from './TTSButton';
+import { useApp } from '@/lib/AppContext';
 
 interface StepInputProps {
   label: string;
@@ -19,6 +23,7 @@ interface StepInputProps {
   autoAdvanceLength?: number;
   autoAdvanceDelay?: number;
   inputRef?: React.RefObject<TextInput>;
+  type?: 'phone' | 'date' | 'number' | 'text' | 'npk';
 }
 
 export function StepInput({
@@ -37,7 +42,9 @@ export function StepInput({
   autoAdvanceLength,
   autoAdvanceDelay = 1000,
   inputRef: externalRef,
+  type = 'text',
 }: StepInputProps) {
+  const { language } = useApp();
   const internalRef = useRef<TextInput>(null);
   const ref = externalRef || internalRef;
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -62,13 +69,26 @@ export function StepInput({
   }, [autoFocus, editable, label]);
 
   const handleChange = useCallback((text: string) => {
-    onChangeText(text);
+    let formatted = text;
+    if (type === 'phone') {
+      formatted = formatPhone(text);
+    } else if (type === 'date') {
+      formatted = formatDate(text);
+    } else if (type === 'number') {
+      formatted = formatNumeric(text);
+    } else if (type === 'npk') {
+      formatted = formatNPK(text);
+    }
+
+    onChangeText(formatted);
 
     if (!onSubmitRef.current || hasAdvancedRef.current) return;
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (autoAdvanceLength && text.length >= autoAdvanceLength) {
+    const isComplete = autoAdvanceLength ? formatted.length >= autoAdvanceLength : false;
+
+    if (isComplete) {
       hasAdvancedRef.current = true;
       debounceRef.current = setTimeout(() => {
         onSubmitRef.current?.();
@@ -76,7 +96,7 @@ export function StepInput({
       return;
     }
 
-    if (text.length > 0) {
+    if (formatted.length > 0 && !multiline) {
       debounceRef.current = setTimeout(() => {
         if (!hasAdvancedRef.current) {
           hasAdvancedRef.current = true;
@@ -84,7 +104,7 @@ export function StepInput({
         }
       }, autoAdvanceDelay);
     }
-  }, [onChangeText, autoAdvanceLength, autoAdvanceDelay]);
+  }, [onChangeText, autoAdvanceLength, autoAdvanceDelay, type, multiline]);
 
   useEffect(() => {
     return () => {
@@ -94,15 +114,22 @@ export function StepInput({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{label}</Text>
+        <TTSButton text={label} language={language} size={18} />
+      </View>
       <View style={styles.inputRow}>
         <TextInput
           ref={ref as React.RefObject<TextInput>}
           style={[styles.input, multiline && { height: 80, textAlignVertical: 'top' as const }, !editable && styles.disabled]}
           value={value}
           onChangeText={handleChange}
-          keyboardType={keyboardType}
-          placeholder={placeholder}
+          keyboardType={
+            type === 'phone' ? 'phone-pad' :
+              (type === 'number' || type === 'npk') ? 'decimal-pad' :
+                keyboardType
+          }
+          placeholder={placeholder || (type === 'date' ? 'YYYY/MM/DD' : type === 'npk' ? 'N:P:K' : '')}
           placeholderTextColor={Colors.textLight}
           editable={editable}
           multiline={multiline}
@@ -134,9 +161,13 @@ interface StepPickerProps {
 }
 
 export function StepPicker({ label, value, options, onSelect }: StepPickerProps) {
+  const { language } = useApp();
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+      <View style={styles.labelRow}>
+        <Text style={styles.label}>{label}</Text>
+        <TTSButton text={label} language={language} size={18} />
+      </View>
       <View style={styles.optionRow}>
         {options.map((opt) => (
           <Pressable
@@ -158,11 +189,17 @@ const styles = StyleSheet.create({
   container: {
     marginBottom: 16,
   },
+  labelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   label: {
     fontSize: 14,
     fontFamily: 'Nunito_600SemiBold',
     color: Colors.textSecondary,
-    marginBottom: 8,
+    flex: 1,
   },
   inputRow: {
     flexDirection: 'row',

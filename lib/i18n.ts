@@ -152,6 +152,20 @@ const translations = {
     phoneValidation: 'Phone must be 10 digits',
     yieldValidation: 'Yield must be positive',
     moistureValidation: 'Moisture must be 50% or less',
+    tips: [
+      'Early weeding prevents nutrient loss for the crop.',
+      'Check soil moisture before planning the next irrigation.',
+      'Regular scouting helps identify pests before they spread.',
+      'Proper spacing ensures better air flow and reduces disease.',
+      'Record your harvest weights accurately to track progress.',
+    ],
+    voiceEntry: "Voice Entry",
+    listening: "Listening...",
+    tapToSpeak: "Tap to speak",
+    fieldsDetected: "fields detected",
+    noFieldsDetected: "No fields detected",
+    applyToFields: "Apply to Fields",
+    collectorInfo: "Collector Information",
   },
   hi: {
     appName: 'VitaInspire',
@@ -304,6 +318,20 @@ const translations = {
     phoneValidation: 'Phone 10 digit ka hona chahiye',
     yieldValidation: 'Upaj positive honi chahiye',
     moistureValidation: 'Nami 50% ya kam honi chahiye',
+    tips: [
+      'Niraai jald karne se fasal ko poshak tatva milte hain.',
+      'Sinchai ki yojna banane se pehle mitti ki nami jaanchen.',
+      'Niyamit jaanch se keedon ko failne se roka ja sakta hai.',
+      'Sahi doori se fasal mein bimaari kam hoti hai.',
+      'Apni upaj ka vajan hamesha sahi dhang se likhen.',
+    ],
+    voiceEntry: "वॉयस एंट्री",
+    listening: "सुन रहे हैं...",
+    tapToSpeak: "बोलने के लिए टैप करें",
+    fieldsDetected: "फिल्ड पहचाने गए",
+    noFieldsDetected: "कोई फिल्ड नहीं पहचाना गया",
+    applyToFields: "फिल्ड्स पर लागू करें",
+    collectorInfo: "संग्रहकर्ता की जानकारी",
   },
   od: {
     appName: 'VitaInspire',
@@ -456,13 +484,33 @@ const translations = {
     phoneValidation: 'Phone 10 digit heba darkar',
     yieldValidation: 'Fala positive heba darkar',
     moistureValidation: 'Ardata 50% ba kam heba darkar',
+    tips: [
+      'Ghasaba bachhibara seghrabale fasalako posaka mile.',
+      'Jalasechana purbaru matira ardata janch karantu.',
+      'Niyamita janch Pokamananku rokibare sahayyakare.',
+      'Sathik durata fasalare roga kam kare.',
+      'Nijara fala ojanaku thik bhabare record karantu.',
+    ],
+    voiceEntry: "ଭଏସ୍ ଏଣ୍ଟ୍ରି",
+    listening: "ଶୁଣୁଛି...",
+    tapToSpeak: "କହିବା ପାଇଁ ଟ୍ୟାପ୍ କରନ୍ତୁ",
+    fieldsDetected: "ଫିଲ୍ଡ ଚିହ୍ନଟ ହେଲା",
+    noFieldsDetected: "କୌଣସି ଫିଲ୍ଡ ଚିହ୍ନଟ ହୋଇନାହିଁ",
+    applyToFields: "ଫିଲ୍ଡରେ ପ୍ରୟୋଗ କରନ୍ତୁ",
+    collectorInfo: "ସଂଗ୍ରହକାରୀଙ୍କ ସୂଚନା",
   },
 };
 
 export type Language = 'en' | 'hi' | 'od';
 
 export function t(key: TranslationKey, lang: Language = 'en'): string {
-  return translations[lang]?.[key] || translations.en[key] || key;
+  const val = translations[lang]?.[key] || (translations.en as any)[key] || key;
+  if (Array.isArray(val)) return val[0] || '';
+  return val as string;
+}
+
+export function getTips(lang: Language = 'en'): string[] {
+  return (translations[lang] as any)?.tips || translations.en.tips || [];
 }
 
 export const languageNames: Record<Language, string> = {

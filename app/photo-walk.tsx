@@ -15,6 +15,8 @@ import { t } from '@/lib/i18n';
 import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
 import { ProgressBar } from '@/components/ProgressBar';
+import { PhotoGuidanceModal } from '@/components/PhotoGuidanceModal';
+import { GuidanceImages } from '@/constants/assets';
 
 export default function PhotoWalkScreen() {
   const insets = useSafeAreaInsets();
@@ -22,6 +24,8 @@ export default function PhotoWalkScreen() {
   const { recordId } = useLocalSearchParams<{ recordId: string }>();
   const [record, setRecord] = useState<FieldRecord | null>(null);
   const [step, setStep] = useState(0);
+  const [guidanceVisible, setGuidanceVisible] = useState(false);
+  const [currentType, setCurrentType] = useState<'entry' | 'center'>('entry');
   const advancedRef = useRef<Record<string, boolean>>({});
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
@@ -38,7 +42,14 @@ export default function PhotoWalkScreen() {
     }
   };
 
-  const takePhoto = async (type: 'entry' | 'center') => {
+  const handleCapturePress = (type: 'entry' | 'center') => {
+    setCurrentType(type);
+    setGuidanceVisible(true);
+  };
+
+  const takePhoto = async () => {
+    setGuidanceVisible(false);
+    const type = currentType;
     try {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ['images'],
@@ -53,7 +64,7 @@ export default function PhotoWalkScreen() {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
           lat = loc.coords.latitude;
           lng = loc.coords.longitude;
-        } catch {}
+        } catch { }
 
         const updated = { ...record };
         if (type === 'entry') {
@@ -115,7 +126,7 @@ export default function PhotoWalkScreen() {
 
       {uri ? (
         <Animated.View entering={FadeIn.duration(400)} style={styles.photoPreview}>
-          <Image source={{ uri }} style={styles.previewImage} contentFit="cover" />
+          <Image source={{ uri }} style={styles.previewImage} contentFit="contain" />
           <View style={styles.gpsTag}>
             <Ionicons name="location" size={12} color={Colors.white} />
             <Text style={styles.gpsTagText}>
@@ -130,7 +141,7 @@ export default function PhotoWalkScreen() {
       ) : (
         <Pressable
           style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
-          onPress={() => takePhoto(type)}
+          onPress={() => handleCapturePress(type)}
         >
           <Ionicons name="camera" size={32} color={Colors.primary} />
           <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
@@ -164,6 +175,17 @@ export default function PhotoWalkScreen() {
           {step === 1 && renderPhotoStep('center', t('centerField', language), t('centerFieldInstruction', language), record.centerPhotoUri, record.centerPhotoLat, record.centerPhotoLng)}
         </Animated.View>
       </ScrollView>
+
+      <PhotoGuidanceModal
+        visible={guidanceVisible}
+        onClose={() => setGuidanceVisible(false)}
+        onCapture={takePhoto}
+        language={language}
+        title={currentType === 'entry' ? t('fieldOverview', language) : t('centerField', language)}
+        instruction={currentType === 'entry' ? t('fieldOverviewInstruction', language) : t('centerFieldInstruction', language)}
+        type={currentType === 'entry' ? 'wide' : 'angle'}
+        exampleImage={currentType === 'entry' ? GuidanceImages.fieldOverview : GuidanceImages.fieldAngle}
+      />
     </View>
   );
 }
@@ -276,6 +298,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
     borderRadius: 12,
+    backgroundColor: Colors.surfaceAlt,
   },
   gpsTag: {
     position: 'absolute',

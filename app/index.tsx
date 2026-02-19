@@ -10,7 +10,7 @@ import { t } from '@/lib/i18n';
 const { width } = Dimensions.get('window');
 
 export default function SplashScreen() {
-  const { language, selfieUri } = useApp();
+  const { language, selfieUri, isLanguageSet } = useApp();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.5)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -55,7 +55,9 @@ export default function SplashScreen() {
     }, 800);
 
     const timer = setTimeout(() => {
-      if (selfieUri) {
+      if (!isLanguageSet) {
+        router.replace('/language-select');
+      } else if (selfieUri) {
         router.replace('/dashboard');
       } else {
         router.replace('/selfie');

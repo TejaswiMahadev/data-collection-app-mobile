@@ -14,11 +14,13 @@ import { t } from '@/lib/i18n';
 import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
 import { ProgressBar } from '@/components/ProgressBar';
+import { PhotoGuidanceModal } from '@/components/PhotoGuidanceModal';
+import { GuidanceImages } from '@/constants/assets';
 
-const PHOTO_STEPS: { field: 'harvestPhotoUri' | 'weighmentPhotoUri' | 'farmerPhotoUri'; cameraType: 'back' | 'front' }[] = [
-  { field: 'harvestPhotoUri', cameraType: 'back' },
-  { field: 'weighmentPhotoUri', cameraType: 'back' },
-  { field: 'farmerPhotoUri', cameraType: 'front' },
+const PHOTO_STEPS: { field: 'harvestPhotoUri' | 'weighmentPhotoUri' | 'farmerPhotoUri'; cameraType: 'back' | 'front'; guideType: 'wide' | 'closeup' | 'angle' }[] = [
+  { field: 'harvestPhotoUri', cameraType: 'back', guideType: 'wide' },
+  { field: 'weighmentPhotoUri', cameraType: 'back', guideType: 'closeup' },
+  { field: 'farmerPhotoUri', cameraType: 'front', guideType: 'closeup' },
 ];
 
 export default function FinalPhotosScreen() {
@@ -27,6 +29,7 @@ export default function FinalPhotosScreen() {
   const { recordId } = useLocalSearchParams<{ recordId: string }>();
   const [record, setRecord] = useState<FieldRecord | null>(null);
   const [step, setStep] = useState(0);
+  const [guidanceVisible, setGuidanceVisible] = useState(false);
   const advancedRef = useRef<Record<number, boolean>>({});
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
@@ -36,7 +39,12 @@ export default function FinalPhotosScreen() {
     if (recordId) getRecord(recordId).then(r => r && setRecord(r));
   }, []);
 
+  const handleCapturePress = () => {
+    setGuidanceVisible(true);
+  };
+
   const capturePhoto = async () => {
+    setGuidanceVisible(false);
     const { field, cameraType } = PHOTO_STEPS[step];
     try {
       const result = await ImagePicker.launchCameraAsync({
@@ -75,7 +83,8 @@ export default function FinalPhotosScreen() {
   if (!record) return <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}><Text style={{ fontFamily: 'Nunito_400Regular', color: Colors.textSecondary }}>Loading...</Text></View>;
 
   const titles = [t('harvestPhoto', language), t('weighmentPhoto', language), t('farmerPhoto', language)];
-  const { field } = PHOTO_STEPS[step];
+  const instructions = [t('fieldOverviewInstruction', language), t('cobCloseup', language), t('selfieInstruction', language)];
+  const { field, guideType } = PHOTO_STEPS[step];
   const currentUri = record[field] as string | undefined;
 
   return (
@@ -108,7 +117,7 @@ export default function FinalPhotosScreen() {
           </View>
           {currentUri ? (
             <Animated.View entering={FadeIn.duration(400)} style={styles.photoWrap}>
-              <Image source={{ uri: currentUri }} style={styles.photo} contentFit="cover" />
+              <Image source={{ uri: currentUri }} style={styles.photo} contentFit="contain" />
               <View style={styles.autoTag}>
                 <Ionicons name="checkmark-circle" size={14} color={Colors.white} />
                 <Text style={styles.autoTagText}>Moving on...</Text>
@@ -117,7 +126,7 @@ export default function FinalPhotosScreen() {
           ) : (
             <Pressable
               style={({ pressed }) => [styles.captureBtn, pressed && { opacity: 0.8 }]}
-              onPress={capturePhoto}
+              onPress={handleCapturePress}
             >
               <Ionicons name="camera" size={32} color={Colors.primary} />
               <Text style={styles.captureBtnText}>{t('capture', language)}</Text>
@@ -125,6 +134,21 @@ export default function FinalPhotosScreen() {
           )}
         </Animated.View>
       </ScrollView>
+
+      <PhotoGuidanceModal
+        visible={guidanceVisible}
+        onClose={() => setGuidanceVisible(false)}
+        onCapture={capturePhoto}
+        language={language}
+        title={titles[step]}
+        instruction={instructions[step]}
+        type={guideType}
+        exampleImage={
+          step === 0 ? GuidanceImages.fieldOverview :
+            step === 1 ? GuidanceImages.cobCloseup :
+              GuidanceImages.selfie
+        }
+      />
     </View>
   );
 }
@@ -152,7 +176,7 @@ const styles = StyleSheet.create({
   dotText: { fontSize: 13, fontFamily: 'Nunito_700Bold', color: Colors.textSecondary },
   title: { fontSize: 17, fontFamily: 'Nunito_700Bold', color: Colors.text },
   photoWrap: { borderRadius: 12, overflow: 'hidden', position: 'relative' },
-  photo: { width: '100%', height: 220, borderRadius: 12 },
+  photo: { width: '100%', height: 220, borderRadius: 12, backgroundColor: Colors.surfaceAlt },
   captureBtn: { backgroundColor: Colors.surfaceAlt, borderRadius: 16, padding: 32, alignItems: 'center', borderWidth: 2, borderColor: Colors.borderLight, borderStyle: 'dashed', gap: 8 },
   captureBtnText: { fontSize: 15, fontFamily: 'Nunito_600SemiBold', color: Colors.primary },
   autoTag: {

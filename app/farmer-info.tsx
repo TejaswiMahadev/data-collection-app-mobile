@@ -12,6 +12,9 @@ import { t } from '@/lib/i18n';
 import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
 import { StepInput, StepPicker } from '@/components/StepInput';
+import { ProgressBar } from '@/components/ProgressBar';
+import { VoiceEntryOverlay } from '@/components/VoiceEntryOverlay';
+import { TTSButton } from '@/components/TTSButton';
 
 export default function FarmerInfoScreen() {
   const insets = useSafeAreaInsets();
@@ -21,6 +24,7 @@ export default function FarmerInfoScreen() {
   const [step, setStep] = useState(0);
   const recordRef = useRef<FieldRecord | null>(null);
   const advancedRef = useRef<Record<number, boolean>>({});
+  const [voiceVisible, setVoiceVisible] = useState(false);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
@@ -31,12 +35,12 @@ export default function FarmerInfoScreen() {
     if (recordId) getRecord(recordId).then(r => r && setRecord(r));
   }, []);
 
-  const update = useCallback((key: keyof FieldRecord, value: string) => {
+  const update = useCallback(async (key: keyof FieldRecord, value: string) => {
     if (!recordRef.current) return;
     const updated = { ...recordRef.current, [key]: value };
     setRecord(updated);
     recordRef.current = updated;
-    saveRecord(updated);
+    await saveRecord(updated);
   }, []);
 
   const goToStep = useCallback((s: number) => {
@@ -123,10 +127,34 @@ export default function FarmerInfoScreen() {
               <Text style={styles.stepBadgeText}>{step + 1}</Text>
             </View>
             <Text style={styles.stepTitle}>{stepTitles[step]}</Text>
+            <TTSButton text={stepTitles[step]} language={language} />
           </View>
           {renderStep()}
         </Animated.View>
       </ScrollView>
+
+      <View style={[styles.fabContainer, { bottom: bottomPad + 20 }]}>
+        <Pressable
+          style={({ pressed }) => [styles.voiceFab, pressed && { transform: [{ scale: 0.95 }] }]}
+          onPress={() => setVoiceVisible(true)}
+        >
+          <Ionicons name="mic" size={28} color={Colors.white} />
+        </Pressable>
+      </View>
+
+      <VoiceEntryOverlay
+        visible={voiceVisible}
+        onClose={() => setVoiceVisible(false)}
+        language={language}
+        onApply={(fields) => {
+          if (!recordRef.current) return;
+          const updated = { ...recordRef.current, ...fields };
+          setRecord(updated);
+          recordRef.current = updated;
+          saveRecord(updated);
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }}
+      />
     </View>
   );
 }
@@ -171,5 +199,24 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: 'Nunito_700Bold',
     color: Colors.text,
+    flex: 1,
+  },
+  fabContainer: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 10,
+  },
+  voiceFab: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: Colors.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 4,
+    shadowColor: Colors.accent,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
 });

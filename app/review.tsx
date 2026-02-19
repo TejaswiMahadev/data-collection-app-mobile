@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, Pressable, ScrollView, Platform, Alert, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,15 +10,20 @@ import { useApp } from '@/lib/AppContext';
 import { t } from '@/lib/i18n';
 import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
+import { StepInput } from '@/components/StepInput';
+import { TTSButton } from '@/components/TTSButton';
 
-interface SummaryCardProps {
+interface SummarySectionProps {
   title: string;
   icon: string;
+  isEditing: boolean;
+  onEditToggle: () => void;
   children: React.ReactNode;
   color?: string;
+  language?: any;
 }
 
-function SummaryCard({ title, icon, children, color = Colors.primary }: SummaryCardProps) {
+function SummarySection({ title, icon, isEditing, onEditToggle, children, color = Colors.primary, language = 'en' }: SummarySectionProps) {
   return (
     <View style={scStyles.card}>
       <View style={scStyles.header}>
@@ -26,13 +31,43 @@ function SummaryCard({ title, icon, children, color = Colors.primary }: SummaryC
           <Ionicons name={icon as any} size={20} color={color} />
         </View>
         <Text style={scStyles.title}>{title}</Text>
+        <TTSButton text={title} language={language} size={18} />
+        <View style={{ width: 8 }} />
+        <Pressable
+          onPress={onEditToggle}
+          style={({ pressed }) => [scStyles.editBtn, pressed && { opacity: 0.7 }]}
+        >
+          <Ionicons name={isEditing ? "checkmark-circle" : "pencil"} size={20} color={isEditing ? Colors.success : Colors.primary} />
+          <Text style={[scStyles.editBtnText, { color: isEditing ? Colors.success : Colors.primary }]}>
+            {isEditing ? "Done" : "Edit"}
+          </Text>
+        </Pressable>
       </View>
       {children}
     </View>
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function DataRow({ label, value, isEditing, onChangeText, type = 'text' }: {
+  label: string;
+  value: string;
+  isEditing?: boolean;
+  onChangeText?: (v: string) => void;
+  type?: 'text' | 'phone' | 'date' | 'number';
+}) {
+  if (isEditing && onChangeText) {
+    return (
+      <View style={scStyles.rowEdit}>
+        <StepInput
+          label={label}
+          value={value}
+          onChangeText={onChangeText}
+          type={type}
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={scStyles.row}>
       <Text style={scStyles.label}>{label}</Text>
@@ -45,8 +80,11 @@ const scStyles = StyleSheet.create({
   card: { backgroundColor: Colors.surface, borderRadius: 16, padding: 18, marginBottom: 12, elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 4 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 },
   iconWrap: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
-  title: { fontSize: 16, fontFamily: 'Nunito_700Bold', color: Colors.text },
+  title: { flex: 1, fontSize: 16, fontFamily: 'Nunito_700Bold', color: Colors.text },
+  editBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 8, borderRadius: 8, backgroundColor: Colors.surfaceAlt },
+  editBtnText: { fontSize: 13, fontFamily: 'Nunito_700Bold' },
   row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  rowEdit: { paddingVertical: 4 },
   label: { fontSize: 13, fontFamily: 'Nunito_400Regular', color: Colors.textSecondary, flex: 1 },
   value: { fontSize: 13, fontFamily: 'Nunito_600SemiBold', color: Colors.text, flex: 1, textAlign: 'right' },
 });
@@ -56,17 +94,30 @@ export default function ReviewScreen() {
   const { language } = useApp();
   const { recordId } = useLocalSearchParams<{ recordId: string }>();
   const [record, setRecord] = useState<FieldRecord | null>(null);
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);
   const bottomPad = insets.bottom + (Platform.OS === 'web' ? 34 : 0);
 
   useEffect(() => {
-    if (recordId) getRecord(recordId).then(r => r && setRecord(r));
-  }, []);
+    if (recordId) {
+      getRecord(recordId).then(r => {
+        if (r) setRecord(r);
+        setLoading(false);
+      });
+    }
+  }, [recordId]);
+
+  const updateField = useCallback((field: keyof FieldRecord, value: string) => {
+    if (!record) return;
+    setRecord({ ...record, [field]: value });
+  }, [record]);
 
   const handleSave = async () => {
     if (!record) return;
     record.syncStatus = 'pending';
+    record.updatedAt = Date.now();
     await saveRecord(record);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Alert.alert(t('saved', language), '', [
@@ -74,11 +125,26 @@ export default function ReviewScreen() {
     ]);
   };
 
-  if (!record) return <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}><Text style={{ fontFamily: 'Nunito_400Regular', color: Colors.textSecondary }}>Loading...</Text></View>;
+  const toggleEdit = (section: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setEditingSection(editingSection === section ? null : section);
+  };
 
-  const zonesCompleted = record.zones.filter(z => z.completed).length;
-  const photoCount = [record.entryPhotoUri, record.centerPhotoUri, record.harvestPhotoUri, record.weighmentPhotoUri, record.farmerPhotoUri, ...record.zones.map(z => z.cropPhotoUri), ...record.zones.map(z => z.cobPhotoUri)].filter(Boolean).length;
-  const dataQuality = zonesCompleted === 3 && record.variety && record.totalHarvestWeight ? t('good', language) : t('incomplete', language);
+  if (loading) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color={Colors.primary} />
+      </View>
+    );
+  }
+
+  if (!record) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={{ fontFamily: 'Nunito_400Regular', color: Colors.textSecondary }}>Record not found</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -88,47 +154,128 @@ export default function ReviewScreen() {
             <Ionicons name="arrow-back" size={24} color={Colors.white} />
           </Pressable>
           <Text style={styles.headerTitle}>{t('review', language)}</Text>
-          <View style={{ width: 40 }} />
+          <Pressable onPress={() => router.replace('/dashboard')} style={styles.backBtn}>
+            <Ionicons name="home" size={22} color={Colors.white} />
+          </Pressable>
         </View>
       </LinearGradient>
 
       <ScrollView style={styles.body} contentContainerStyle={{ paddingBottom: bottomPad + 120 }}>
-        <SummaryCard title={t('fieldInfo', language)} icon="location" color={Colors.primary}>
-          <Row label={t('fieldId', language)} value={record.fieldId} />
-          <Row label={t('district', language)} value={record.district} />
-          <Row label={t('block', language)} value={record.block} />
-          <Row label={t('village', language)} value={record.village} />
-          <Row label={t('fieldArea', language)} value={`${record.fieldAreaAcres} ac / ${record.fieldAreaHectares} ha`} />
-        </SummaryCard>
+        {/* Field Info */}
+        <SummarySection
+          title={t('fieldInfo', language)}
+          icon="location"
+          isEditing={editingSection === 'field'}
+          onEditToggle={() => toggleEdit('field')}
+          language={language}
+        >
+          <DataRow
+            label={t('fieldId', language)}
+            value={record.fieldId}
+            isEditing={editingSection === 'field'}
+            onChangeText={(v) => updateField('fieldId', v)}
+          />
+          <DataRow
+            label={t('district', language)}
+            value={record.district}
+            isEditing={editingSection === 'field'}
+            onChangeText={(v) => updateField('district', v)}
+          />
+          <DataRow
+            label={t('block', language)}
+            value={record.block}
+            isEditing={editingSection === 'field'}
+            onChangeText={(v) => updateField('block', v)}
+          />
+          <DataRow
+            label={t('village', language)}
+            value={record.village}
+            isEditing={editingSection === 'field'}
+            onChangeText={(v) => updateField('village', v)}
+          />
+          <DataRow
+            label={t('fieldArea', language)}
+            value={`${record.fieldAreaAcres} ac`}
+            isEditing={editingSection === 'field'}
+            onChangeText={(v) => updateField('fieldAreaAcres', v)}
+            type="number"
+          />
+        </SummarySection>
 
-        <SummaryCard title={t('yieldData', language)} icon="trending-up" color={Colors.accent}>
-          <Row label={t('totalHarvestWeight', language)} value={record.totalHarvestWeight ? `${record.totalHarvestWeight} kg` : ''} />
-          <Row label={t('moisturePercent', language)} value={record.moisturePercent ? `${record.moisturePercent}%` : ''} />
-          <Row label={t('dryWeight', language)} value={record.dryWeight ? `${record.dryWeight} kg` : ''} />
-          <Row label={t('yieldKgHa', language)} value={record.yieldKgHa} />
-          <Row label={t('yieldQuintalsAcre', language)} value={record.yieldQuintalsAcre} />
-        </SummaryCard>
+        {/* Yield Data */}
+        <SummarySection
+          title={t('yieldData', language)}
+          icon="trending-up"
+          color={Colors.accent}
+          isEditing={editingSection === 'yield'}
+          onEditToggle={() => toggleEdit('yield')}
+          language={language}
+        >
+          <DataRow
+            label={t('totalHarvestWeight', language)}
+            value={record.totalHarvestWeight ? `${record.totalHarvestWeight} kg` : ''}
+            isEditing={editingSection === 'yield'}
+            onChangeText={(v) => updateField('totalHarvestWeight', v)}
+            type="number"
+          />
+          <DataRow
+            label={t('moisturePercent', language)}
+            value={record.moisturePercent ? `${record.moisturePercent}%` : ''}
+            isEditing={editingSection === 'yield'}
+            onChangeText={(v) => updateField('moisturePercent', v)}
+            type="number"
+          />
+          <DataRow label={t('dryWeight', language)} value={record.dryWeight ? `${record.dryWeight} kg` : ''} />
+          <DataRow label={t('yieldKgHa', language)} value={record.yieldKgHa} />
+        </SummarySection>
 
-        <SummaryCard title={t('zonesCompletion', language)} icon="grid" color={Colors.success}>
-          {record.zones.map((z) => (
-            <View key={z.zoneId} style={styles.zoneRow}>
-              <View style={[styles.zoneDot, { backgroundColor: z.zoneId === 'A' ? Colors.zoneGood : z.zoneId === 'B' ? Colors.zoneMedium : Colors.zoneWeak }]} />
-              <Text style={styles.zoneLabel}>Zone {z.zoneId} - {z.label}</Text>
-              <Ionicons name={z.completed ? 'checkmark-circle' : 'ellipse-outline'} size={20} color={z.completed ? Colors.success : Colors.textLight} />
-            </View>
-          ))}
-        </SummaryCard>
+        {/* Farmer Info */}
+        <SummarySection
+          title={t('farmerInfo', language)}
+          icon="person"
+          color={Colors.primaryLight}
+          isEditing={editingSection === 'farmer'}
+          onEditToggle={() => toggleEdit('farmer')}
+          language={language}
+        >
+          <DataRow
+            label={t('farmerName', language)}
+            value={record.farmerName}
+            isEditing={editingSection === 'farmer'}
+            onChangeText={(v) => updateField('farmerName', v)}
+          />
+          <DataRow
+            label={t('farmerPhone', language)}
+            value={record.farmerPhone}
+            isEditing={editingSection === 'farmer'}
+            onChangeText={(v) => updateField('farmerPhone', v)}
+            type="phone"
+          />
+        </SummarySection>
 
-        <SummaryCard title={t('photoCount', language)} icon="images" color="#9C27B0">
-          <Row label={t('photoCount', language)} value={`${photoCount} / 11`} />
-        </SummaryCard>
-
-        <SummaryCard title={t('dataQuality', language)} icon="shield-checkmark" color={dataQuality === t('good', language) ? Colors.success : Colors.warning}>
-          <View style={[styles.qualityBadge, { backgroundColor: dataQuality === t('good', language) ? '#E8F5E9' : '#FFF3E0' }]}>
-            <Ionicons name={dataQuality === t('good', language) ? 'checkmark-circle' : 'alert-circle'} size={20} color={dataQuality === t('good', language) ? Colors.success : Colors.warning} />
-            <Text style={[styles.qualityText, { color: dataQuality === t('good', language) ? Colors.success : Colors.warning }]}>{dataQuality}</Text>
-          </View>
-        </SummaryCard>
+        {/* Collector Info */}
+        <SummarySection
+          title={t('collectorInfo', language)}
+          icon="clipboard"
+          color={Colors.zoneGood}
+          isEditing={editingSection === 'collector'}
+          onEditToggle={() => toggleEdit('collector')}
+          language={language}
+        >
+          <DataRow
+            label={t('collectorName', language)}
+            value={record.collectorName}
+            isEditing={editingSection === 'collector'}
+            onChangeText={(v) => updateField('collectorName', v)}
+          />
+          <DataRow
+            label={t('collectorPhone', language)}
+            value={record.collectorPhone}
+            isEditing={editingSection === 'collector'}
+            onChangeText={(v) => updateField('collectorPhone', v)}
+            type="phone"
+          />
+        </SummarySection>
       </ScrollView>
 
       <View style={[styles.footer, { paddingBottom: bottomPad + 16 }]}>
@@ -153,11 +300,6 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.15)', justifyContent: 'center', alignItems: 'center' },
   headerTitle: { flex: 1, textAlign: 'center', fontSize: 18, fontFamily: 'Nunito_700Bold', color: Colors.white },
   body: { flex: 1, paddingHorizontal: 20, paddingTop: 24 },
-  zoneRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 10 },
-  zoneDot: { width: 10, height: 10, borderRadius: 5 },
-  zoneLabel: { flex: 1, fontSize: 14, fontFamily: 'Nunito_400Regular', color: Colors.text },
-  qualityBadge: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10 },
-  qualityText: { fontSize: 15, fontFamily: 'Nunito_700Bold' },
   footer: { position: 'absolute', bottom: 0, left: 0, right: 0, paddingHorizontal: 20, paddingTop: 12, backgroundColor: Colors.background, borderTopWidth: 1, borderTopColor: Colors.borderLight },
   footerRow: { flexDirection: 'row', gap: 12 },
   saveBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.primary, borderRadius: 16, paddingVertical: 16, gap: 8 },

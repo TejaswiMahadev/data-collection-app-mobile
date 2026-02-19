@@ -8,6 +8,7 @@ interface AppContextValue {
   selfieUri: string | null;
   setSelfieUri: (uri: string) => void;
   fontsLoaded: boolean;
+  isLanguageSet: boolean;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -15,20 +16,32 @@ const AppContext = createContext<AppContextValue | null>(null);
 export function AppProvider({ children, fontsLoaded }: { children: ReactNode; fontsLoaded: boolean }) {
   const [language, setLang] = useState<Language>('en');
   const [selfieUri, setSelfie] = useState<string | null>(null);
+  const [isLanguageSet, setIsLanguageSet] = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     (async () => {
-      const lang = await getLanguage();
-      setLang(lang as Language);
-      const uri = await getSelfie();
-      setSelfie(uri);
-      setReady(true);
+      try {
+        const lang = await getLanguage();
+        if (lang) {
+          setLang(lang as Language);
+          setIsLanguageSet(true);
+        }
+        const uri = await getSelfie();
+        setSelfie(uri);
+        // Sync records in background
+        import('./storage').then(m => m.syncRecords()).catch(() => { });
+      } catch (error) {
+        console.error('Failed to initialize AppContext:', error);
+      } finally {
+        setReady(true);
+      }
     })();
   }, []);
 
   const changeLanguage = (lang: Language) => {
     setLang(lang);
+    setIsLanguageSet(true);
     storeLanguage(lang);
   };
 
@@ -43,7 +56,8 @@ export function AppProvider({ children, fontsLoaded }: { children: ReactNode; fo
     selfieUri,
     setSelfieUri,
     fontsLoaded,
-  }), [language, selfieUri, fontsLoaded]);
+    isLanguageSet,
+  }), [language, selfieUri, fontsLoaded, isLanguageSet]);
 
   if (!ready) return null;
 
