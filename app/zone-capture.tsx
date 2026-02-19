@@ -299,10 +299,10 @@ export default function ZoneCaptureScreen() {
                 label={t('plantColor', language)}
                 value={zone.plantColor || ''}
                 options={[
-                  { label: 'Green', value: 'green' },
-                  { label: 'Yellow-Green', value: 'yellow-green' },
-                  { label: 'Yellow', value: 'yellow' },
-                  { label: 'Brown', value: 'brown' },
+                  { label: t('green', language), value: 'green' },
+                  { label: t('yellowGreen', language), value: 'yellow-green' },
+                  { label: t('yellow', language), value: 'yellow' },
+                  { label: t('brown', language), value: 'brown' },
                 ]}
                 onSelect={(v) => handlePickerSelect('plantColor', v)}
               />

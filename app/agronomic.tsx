@@ -121,9 +121,9 @@ export default function AgronomicScreen() {
             <StepInput label={t('variety', language)} value={record.variety} onChangeText={(v) => update('variety', v)} placeholder="e.g. DHM 117" autoFocus={true} autoAdvanceDelay={1200} onSubmit={() => { }} />
             <StepInput label={t('seedCompany', language)} value={record.seedCompany} onChangeText={(v) => update('seedCompany', v)} placeholder="e.g. Pioneer" autoAdvanceDelay={1200} onSubmit={() => { }} />
             <StepPicker label={t('seedType', language)} value={record.seedType} options={[
-              { label: 'Hybrid', value: 'hybrid' },
-              { label: 'OPV', value: 'opv' },
-              { label: 'Local', value: 'local' },
+              { label: t('hybrid', language), value: 'hybrid' },
+              { label: t('opv', language), value: 'opv' },
+              { label: t('local', language), value: 'local' },
             ]} onSelect={(v) => { update('seedType', v); }} />
             <StepInput label={t('harvestDate', language)} value={record.harvestDate} onChangeText={(v) => update('harvestDate', v)} placeholder="YYYY/MM/DD" autoAdvanceLength={10} returnKeyType="done" onSubmit={advanceSection} type="date" />
           </>

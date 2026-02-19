@@ -25,7 +25,10 @@ export function TTSButton({ text, language, size = 20, color = Colors.primary }:
         setSpeaking(true);
         const voiceLanguage = language === 'hi' ? 'hi-IN' : language === 'od' ? 'or-IN' : 'en-US';
 
-        Speech.speak(text, {
+        // Only speak the primary part (before the English parenthetical)
+        const primaryText = text.split(' (')[0];
+
+        Speech.speak(primaryText, {
             language: voiceLanguage,
             onDone: () => setSpeaking(false),
             onError: () => setSpeaking(false),

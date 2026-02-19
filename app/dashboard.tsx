@@ -61,7 +61,7 @@ export default function DashboardScreen() {
             onPress={async () => {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               import('@/lib/storage').then(m => m.syncRecords());
-              Alert.alert(t('syncData', language), `${pendingCount} records are being synced.`);
+              Alert.alert(t('syncData', language), `${pendingCount} ${t('syncingRecords', language)}.`);
               loadCounts();
             }}
           >
@@ -114,10 +114,10 @@ export default function DashboardScreen() {
               if (pendingCount > 0) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
                 import('@/lib/storage').then(m => m.syncRecords());
-                Alert.alert(t('syncData', language), `${pendingCount} records are being synced.`);
+                Alert.alert(t('syncData', language), `${pendingCount} ${t('syncingRecords', language)}.`);
                 loadCounts();
               } else {
-                Alert.alert(t('synced', language), "All records are up to date.");
+                Alert.alert(t('synced', language), t('syncedAll', language));
               }
             }}
           >
@@ -140,7 +140,7 @@ export default function DashboardScreen() {
               <>
                 <View style={styles.tipHeader}>
                   <Ionicons name="bulb" size={20} color={Colors.accentDark} />
-                  <Text style={styles.tipTitle}>Tip of the Day</Text>
+                  <Text style={styles.tipTitle}>{t('tipOfDay', language)}</Text>
                   <TTSButton text={tipText} language={language} size={18} color={Colors.accentDark} />
                 </View>
                 <Text style={styles.tipText}>{tipText}</Text>
@@ -152,7 +152,7 @@ export default function DashboardScreen() {
         {/* Recent Records */}
         {recentRecords.length > 0 && (
           <View style={styles.recentSection}>
-            <Text style={styles.sectionLabel}>Recent Activity</Text>
+            <Text style={styles.sectionLabel}>{t('recentActivity', language)}</Text>
             {recentRecords.map((r) => (
               <Pressable
                 key={r.id}
@@ -161,7 +161,7 @@ export default function DashboardScreen() {
               >
                 <View style={[styles.statusDot, { backgroundColor: r.syncStatus === 'synced' ? Colors.success : Colors.accent }]} />
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.recentField}>{r.fieldId || 'Unnamed Field'}</Text>
+                  <Text style={styles.recentField}>{r.fieldId || t('unnamedField', language)}</Text>
                   <Text style={styles.recentDate}>{new Date(r.updatedAt).toLocaleDateString()}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={16} color={Colors.textLight} />
