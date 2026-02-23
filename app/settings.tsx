@@ -8,7 +8,7 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp } from '@/lib/AppContext';
 import { t, Language, languageNames } from '@/lib/i18n';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 
 const LANGUAGES: Language[] = ['en', 'hi', 'od'];
 
@@ -20,6 +20,9 @@ export default function SettingsScreen() {
     if (isVoiceOn) {
       playVoiceInstruction(t('viSettings' as any, language), language);
     }
+    return () => {
+      stopVoiceInstruction();
+    };
   }, [isVoiceOn, language]);
 
   const topPad = insets.top + (Platform.OS === 'web' ? 67 : 0);

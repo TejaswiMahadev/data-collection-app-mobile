@@ -9,7 +9,7 @@ import { useApp } from '@/lib/AppContext';
 import { t } from '@/lib/i18n';
 import { getAllRecords, deleteRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 
 function RecordItem({ record, language, onDelete }: { record: FieldRecord; language: string; onDelete: () => void }) {
   const zonesCompleted = record.zones.filter(z => z.completed).length;
@@ -76,6 +76,9 @@ export default function RecordsScreen() {
       if (isVoiceOn) {
         playVoiceInstruction(t('viRecords' as any, language), language);
       }
+      return () => {
+        stopVoiceInstruction();
+      };
     }, [isVoiceOn, language])
   );
 

@@ -13,7 +13,7 @@ import { useApp } from '@/lib/AppContext';
 import { t } from '@/lib/i18n';
 import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 import { ProgressBar } from '@/components/ProgressBar';
 import { PhotoGuidanceModal } from '@/components/PhotoGuidanceModal';
 import { GuidanceImages } from '@/constants/assets';
@@ -87,6 +87,9 @@ export default function FinalPhotosScreen() {
     if (isVoiceOn && titles[step]) {
       playVoiceInstruction(titles[step], language);
     }
+    return () => {
+      stopVoiceInstruction();
+    };
   }, [step, isVoiceOn, language]);
 
   if (!record) return <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}><Text style={{ fontFamily: 'Nunito_400Regular', color: Colors.textSecondary }}>Loading...</Text></View>;

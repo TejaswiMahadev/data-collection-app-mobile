@@ -25,6 +25,11 @@ export default function VoicePromptScreen() {
         // Set the state in context
         toggleVoice(enable);
 
+        if (enable) {
+            const { playVoiceInstruction } = await import('@/lib/tts');
+            playVoiceInstruction(t('viWelcome', language), language);
+        }
+
         // Save to storage
         const { setVoicePreference } = await import('@/lib/storage');
         await setVoicePreference(enable ? 'yes' : 'no');
@@ -53,11 +58,11 @@ export default function VoicePromptScreen() {
                 </Animated.View>
 
                 <Animated.Text entering={FadeInUp.duration(600).delay(100).springify()} style={styles.title}>
-                    Voice Instructions
+                    {t('voiceInstructions', language)}
                 </Animated.Text>
 
                 <Animated.Text entering={FadeInUp.duration(600).delay(200).springify()} style={styles.subtitle}>
-                    Do you want the app to read instructions to you out loud as you navigate?
+                    {t('voicePromptDesc', language)}
                 </Animated.Text>
 
                 <Animated.View entering={FadeInDown.duration(600).delay(300).springify()} style={styles.btnRow}>
@@ -71,7 +76,7 @@ export default function VoicePromptScreen() {
                     >
                         <Ionicons name="checkmark-circle" size={24} color={selected === true ? Colors.white : Colors.success} />
                         <Text style={[styles.btnText, selected === true && { color: Colors.white }]}>
-                            Yes, Enable Voice
+                            {t('enableVoice', language)}
                         </Text>
                     </Pressable>
 
@@ -85,7 +90,7 @@ export default function VoicePromptScreen() {
                     >
                         <Ionicons name="close-circle" size={24} color={selected === false ? Colors.white : Colors.error} />
                         <Text style={[styles.btnText, { color: Colors.textSecondary }, selected === false && { color: Colors.white }]}>
-                            No, I'll read them
+                            {t('skipVoice', language)}
                         </Text>
                     </Pressable>
                 </Animated.View>

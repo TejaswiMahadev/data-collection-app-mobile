@@ -12,7 +12,7 @@ import { useApp } from '@/lib/AppContext';
 import { t, getTips } from '@/lib/i18n';
 import { getAllRecords } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 import { TTSButton } from '@/components/TTSButton';
 
 export default function DashboardScreen() {
@@ -35,6 +35,9 @@ export default function DashboardScreen() {
       if (isVoiceOn) {
         playVoiceInstruction(t('viDashboard' as any, language), language);
       }
+      return () => {
+        stopVoiceInstruction();
+      };
     }, [isVoiceOn, language])
   );
 

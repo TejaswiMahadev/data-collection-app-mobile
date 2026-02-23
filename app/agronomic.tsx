@@ -11,7 +11,7 @@ import { useApp } from '@/lib/AppContext';
 import { t, Language } from '@/lib/i18n';
 import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 import { StepInput, StepPicker } from '@/components/StepInput';
 import { ProgressBar } from '@/components/ProgressBar';
 import { VoiceEntryOverlay } from '@/components/VoiceEntryOverlay';
@@ -128,6 +128,9 @@ export default function AgronomicScreen() {
       const key = sectionVoiceKeys[section];
       playVoiceInstruction(t(key as any, language), language);
     }
+    return () => {
+      stopVoiceInstruction();
+    };
   }, [sectionIdx, isVoiceOn, language, !!record]);
 
   const renderSection = () => {

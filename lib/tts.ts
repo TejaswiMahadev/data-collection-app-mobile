@@ -3,27 +3,32 @@ import { getApiUrl } from '@/lib/query-client';
 
 // Singleton to track the currently playing sound
 let activeSound: Audio.Sound | null = null;
+// Track the latest requested ID to handle race conditions during async fetching
+let lastRequestId = 0;
 
 // Cache map for storing generated audio URIs to avoid redundant API hits
 const audioCache = new Map<string, string>();
 
 /**
  * Plays a voice instruction after clearing any currently playing audio.
- * Implements simple memoization to prevent excessive API calls.
+ * Implements strict sequencing and memoization to prevent overlap and excessive calls.
  */
 export async function playVoiceInstruction(text: string, language: string) {
+    const requestId = ++lastRequestId;
     const cacheKey = `${language}:${text}`;
 
     try {
-        // 1. Stop and cleanup any currently playing sound
+        // 1. Immediately stop any currently playing sound
         if (activeSound) {
             try {
-                await activeSound.stopAsync();
-                await activeSound.unloadAsync();
+                // Ensure we don't block the new request too long
+                const soundToCleanup = activeSound;
+                activeSound = null;
+                await soundToCleanup.stopAsync();
+                await soundToCleanup.unloadAsync();
             } catch (cleanupErr) {
                 console.warn('Error cleaning up previous sound:', cleanupErr);
             }
-            activeSound = null;
         }
 
         // 2. Resolve target URL (check cache first)
@@ -35,19 +40,28 @@ export async function playVoiceInstruction(text: string, language: string) {
             url.searchParams.append('text', text);
             url.searchParams.append('language', language);
             soundUri = url.toString();
-
-            // For simple GET-based streaming, we just cache the URL.
-            // If the audio was truly dynamic/volatile, we wouldn't cache it.
             audioCache.set(cacheKey, soundUri);
         }
 
-        // 3. Create and play the new sound
+        // Check if we've been superseded while generating params
+        if (requestId !== lastRequestId) return null;
+
+        // 3. Create the new sound
+        // We use { shouldPlay: false } initially to have more control
         const { sound } = await Audio.Sound.createAsync(
             { uri: soundUri },
-            { shouldPlay: true }
+            { shouldPlay: false }
         );
 
+        // Check again if we were superseded during the slow 'createAsync'
+        if (requestId !== lastRequestId) {
+            await sound.unloadAsync().catch(() => { });
+            return null;
+        }
+
+        // 4. Start playback
         activeSound = sound;
+        await sound.playAsync();
 
         sound.setOnPlaybackStatusUpdate((status) => {
             if (status.isLoaded && status.didJustFinish) {
@@ -69,6 +83,7 @@ export async function playVoiceInstruction(text: string, language: string) {
  * Explicitly stops any ongoing voice instruction.
  */
 export async function stopVoiceInstruction() {
+    lastRequestId++; // Invalidate any loading requests
     if (activeSound) {
         try {
             await activeSound.stopAsync();

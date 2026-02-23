@@ -15,14 +15,18 @@ const LANGUAGES: Language[] = ['en', 'hi', 'od'];
 
 export default function LanguageSelectScreen() {
     const insets = useSafeAreaInsets();
-    const { changeLanguage, language: currentLang } = useApp();
+    const { changeLanguage, language: currentLang, isVoicePrefSet } = useApp();
 
     const handleSelect = (lang: Language) => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         changeLanguage(lang);
-        // After selection, go to selfie or dashboard
+
         setTimeout(() => {
-            router.replace('/selfie');
+            if (!isVoicePrefSet) {
+                router.replace('/voice-prompt');
+            } else {
+                router.replace('/selfie');
+            }
         }, 400);
     };
 

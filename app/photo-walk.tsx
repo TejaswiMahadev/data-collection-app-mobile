@@ -14,7 +14,7 @@ import { useApp } from '@/lib/AppContext';
 import { t } from '@/lib/i18n';
 import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 import { ProgressBar } from '@/components/ProgressBar';
 import { PhotoGuidanceModal } from '@/components/PhotoGuidanceModal';
 import { GuidanceImages } from '@/constants/assets';
@@ -37,6 +37,9 @@ export default function PhotoWalkScreen() {
     if (isVoiceOn) {
       playVoiceInstruction(t('viPhotoWalk' as any, language), language);
     }
+    return () => {
+      stopVoiceInstruction();
+    };
   }, [isVoiceOn, language]);
 
   const loadRecord = async () => {

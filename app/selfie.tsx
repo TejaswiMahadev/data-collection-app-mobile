@@ -9,7 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Colors from '@/constants/colors';
 import { useApp } from '@/lib/AppContext';
 import { t } from '@/lib/i18n';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 
 export default function SelfieScreen() {
   const insets = useSafeAreaInsets();
@@ -21,6 +21,9 @@ export default function SelfieScreen() {
     if (isVoiceOn) {
       playVoiceInstruction(t('viSelfie' as any, language), language);
     }
+    return () => {
+      stopVoiceInstruction();
+    };
   }, [isVoiceOn, language]);
 
   const takePhoto = async () => {

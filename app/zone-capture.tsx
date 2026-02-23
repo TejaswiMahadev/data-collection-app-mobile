@@ -13,7 +13,7 @@ import { useApp } from '@/lib/AppContext';
 import { t } from '@/lib/i18n';
 import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord, ZoneData } from '@/lib/types';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 import { StepInput, StepPicker } from '@/components/StepInput';
 import { ProgressBar } from '@/components/ProgressBar';
 import { PhotoGuidanceModal } from '@/components/PhotoGuidanceModal';
@@ -150,6 +150,9 @@ export default function ZoneCaptureScreen() {
     if (isVoiceOn && record) {
       playVoiceInstruction(t(voiceKeys[zoneStep] as any, language), language);
     }
+    return () => {
+      stopVoiceInstruction();
+    };
   }, [zoneStep, activeZone, isVoiceOn, language, !!record]);
 
   const handlePickerSelect = async (field: keyof ZoneData, value: string) => {

@@ -11,7 +11,7 @@ import { useApp } from '@/lib/AppContext';
 import { t } from '@/lib/i18n';
 import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 import { StepInput, StepPicker } from '@/components/StepInput';
 import { ProgressBar } from '@/components/ProgressBar';
 import { VoiceEntryOverlay } from '@/components/VoiceEntryOverlay';
@@ -82,6 +82,9 @@ export default function FarmerInfoScreen() {
     if (isVoiceOn && stepTitles[step]) {
       playVoiceInstruction(stepTitles[step], language);
     }
+    return () => {
+      stopVoiceInstruction();
+    };
   }, [step, isVoiceOn, language]);
 
   const renderStep = () => {

@@ -11,7 +11,7 @@ import { t } from '@/lib/i18n';
 import { getRecord, saveRecord } from '@/lib/storage';
 import { FieldRecord } from '@/lib/types';
 import { StepInput } from '@/components/StepInput';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 
 interface SummarySectionProps {
   title: string;
@@ -118,6 +118,9 @@ export default function ReviewScreen() {
     if (isVoiceOn && !loading) {
       playVoiceInstruction(t('review', language), language);
     }
+    return () => {
+      stopVoiceInstruction();
+    };
   }, [loading, isVoiceOn, language]);
 
   const updateField = useCallback((field: keyof FieldRecord, value: string) => {

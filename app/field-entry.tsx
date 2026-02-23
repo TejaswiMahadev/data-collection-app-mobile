@@ -12,7 +12,7 @@ import { useApp } from '@/lib/AppContext';
 import { t } from '@/lib/i18n';
 import { createEmptyRecord, FieldRecord } from '@/lib/types';
 import { saveRecord } from '@/lib/storage';
-import { playVoiceInstruction } from '@/lib/tts';
+import { playVoiceInstruction, stopVoiceInstruction } from '@/lib/tts';
 import { StepInput } from '@/components/StepInput';
 import { ProgressBar } from '@/components/ProgressBar';
 
@@ -145,6 +145,9 @@ export default function FieldEntryScreen() {
     if (isVoiceOn && step < 7) {
       playVoiceInstruction(t(voiceKeys[step] as any, language), language);
     }
+    return () => {
+      stopVoiceInstruction();
+    };
   }, [step, isVoiceOn, language]);
 
   return (

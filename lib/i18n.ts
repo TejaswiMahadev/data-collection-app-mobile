@@ -203,7 +203,12 @@ const translations = {
     viRecords: "Here are all your saved field records. You can sync them when you have internet.",
     viSelfie: "Please take a clear photo of yourself to verify the data collection.",
     viSettings: "In settings, you can change the app language or reset your voice preferences.",
-    viReview: "Please review all the information you have collected before submitting the record."
+    viReview: "Please review all the information you have collected before submitting the record.",
+    voiceInstructions: "Voice Instructions",
+    voicePromptDesc: "Do you want the app to read instructions to you out loud as you navigate?",
+    enableVoice: "Yes, Enable Voice",
+    skipVoice: "No, I'll read them",
+    viWelcome: "Welcome to VitaInspire. Voice instructions are now enabled in English."
   },
   hi: {
     appName: 'विटा-इंस्पायर',
@@ -407,7 +412,12 @@ const translations = {
     viRecords: "यहाँ आपके सभी सहेजे गए खेत रिकॉर्ड हैं। इंटरनेट उपलब्ध होने पर आप उन्हें सिंक कर सकते हैं।",
     viSelfie: "डेटा संग्रह को सत्यापित करने के लिए कृपया अपनी एक साफ़ फोटो लें।",
     viSettings: "सेटिंग्स में, आप ऐप की भाषा बदल सकते हैं या अपनी आवाज़ की प्राथमिकताएँ रीसेट कर सकते हैं।",
-    viReview: "रिकॉर्ड सबमिट करने से पहले कृपया आपके द्वारा एकत्र की गई सभी जानकारी की समीक्षा करें।"
+    viReview: "रिकॉर्ड सबमिट करने से पहले कृपया आपके द्वारा एकत्र की गई सभी जानकारी की समीक्षा करें।",
+    voiceInstructions: "आवाज़ निर्देश (Voice Instructions)",
+    voicePromptDesc: "क्या आप चाहते हैं कि ऐप आपके नैविगेट करते समय निर्देशों को बोलकर सुनाए?",
+    enableVoice: "हाँ, आवाज़ चालू करें",
+    skipVoice: "नहीं, मैं खुद पढ़ूँगा",
+    viWelcome: "विटा-इंस्पायर में आपका स्वागत है। अब हिंदी में आवाज़ निर्देश चालू कर दिए गए हैं।"
   },
   od: {
     appName: 'ଭିଟା-ଇନସ୍ପାୟର୍',
@@ -611,7 +621,12 @@ const translations = {
     viRecords: "ଏଠାରେ ଆପଣଙ୍କର ସମସ୍ତ ସେଭ୍ ହୋଇଥିବା କ୍ଷେତ୍ର ରେକର୍ଡ ଅଛି। ଆପଣଙ୍କ ପାଖରେ ଇଣ୍ଟରନେଟ୍ ଥିବାବେଳେ ଆପଣ ସେଗୁଡ଼ିକୁ ସିଙ୍କ୍ କରିପାରିବେ।",
     viSelfie: "ଡାଟା ସଂଗ୍ରହ ଯାଞ୍ଚ କରିବା ପାଇଁ ଦୟାକରି ନିଜର ଏକ ସ୍ପଷ୍ଟ ଫଟୋ ନିଅନ୍ତୁ।",
     viSettings: "ସେଟିଂସରେ, ଆପଣ ଆପ୍ ଭାଷା ପରିବର୍ତ୍ତନ କରିପାରିବେ କିମ୍ବା ଆପଣଙ୍କର ଭଏସ୍ ପସନ୍ଦକୁ ରିସେଟ୍ କରିପାରିବେ।",
-    viReview: "ରେକର୍ଡ ଦାଖଲ କରିବା ପୂର୍ବରୁ ଦୟାକରି ଆପଣ ସଂଗ୍ରହ କରିଥିବା ସମସ୍ତ ସୂଚନା ସମୀକ୍ଷା କରନ୍ତୁ |"
+    viReview: "ରେକର୍ଡ ଦାଖଲ କରିବା ପୂର୍ବରୁ ଦୟାକରି ଆପଣ ସଂଗ୍ରହ କରିଥିବା ସମସ୍ତ ସୂଚନା ସମୀକ୍ଷା କରନ୍ତୁ |",
+    voiceInstructions: "ଭଏସ୍ ନିର୍ଦ୍ଦେଶାବଳୀ",
+    voicePromptDesc: "ଆପଣ କ’ଣ ଚାହୁଁଛନ୍ତି କି ଆପ୍ ଆପଣଙ୍କୁ ନିର୍ଦ୍ଦେଶଗୁଡ଼ିକ ପଢ଼ି ଶୁଣାଉ?",
+    enableVoice: "ହଁ, ଭଏସ୍ ସକ୍ଷମ କରନ୍ତୁ",
+    skipVoice: "ନା, ମୁଁ ନିଜେ ପଢ଼ିବି",
+    viWelcome: "ଭିଟା-ଇନସ୍ପାୟର୍ କୁ ଆପଣଙ୍କୁ ସ୍ୱାଗତ। ଓଡ଼ିଆରେ ଭଏସ୍ ନିର୍ଦ୍ଦେଶାବଳୀ ଏବେ ସକ୍ଷମ ହୋଇଛି।"
   },
 };
 
